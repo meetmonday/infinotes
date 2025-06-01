@@ -473,7 +473,8 @@ function draw() {
 
 // Обновляем функцию noteAt для уменьшения кликабельной области
 function noteAt(x, y) {
-    const hitPadding = 6; // Уменьшаем с 12 до 6
+    const padding = 8;
+    const hitPadding = 6;
     for (let i = notes.length - 1; i >= 0; i--) {
         let note = notes[i];
         if (note.type === 'image') {
@@ -488,15 +489,22 @@ function noteAt(x, y) {
                 return note;
             }
         } else {
-            const width = note.isMultiLine ? note.width : ctx.measureText(note.text).width + 16;
-            const height = note.isMultiLine ? note.height : (note.fontSize || fontSize) + 16;
-            let totalWidth = width + hitPadding * 2;
-            let totalHeight = height + hitPadding * 2;
+            let width, height;
+            if (note.isMultiLine) {
+                width = note.width;
+                height = note.height;
+            } else {
+                ctx.font = `${note.fontSize || fontSize}px ${defaultFont}`;
+                width = ctx.measureText(note.text).width + padding * 2;
+                height = (note.fontSize || fontSize) + padding * 2;
+            }
+            let x0 = note.x - offsetX - hitPadding;
+            let y0 = note.y - offsetY - hitPadding;
+            let x1 = note.x - offsetX + width + hitPadding;
+            let y1 = note.y - offsetY + height + hitPadding;
             if (
-                x >= note.x - offsetX - hitPadding && 
-                x <= note.x - offsetX + totalWidth && 
-                y >= note.y - offsetY - hitPadding && 
-                y <= note.y - offsetY + totalHeight
+                x >= x0 && x <= x1 &&
+                y >= y0 && y <= y1
             ) {
                 return note;
             }
@@ -631,7 +639,6 @@ canvas.addEventListener('mouseup', e => {
                     const targetY = coords.y - window.innerHeight / 2;
                     const duration = 500;
                     const startTime = performance.now();
-                    
                     function animate(currentTime) {
                         const elapsed = currentTime - startTime;
                         const progress = Math.min(elapsed / duration, 1);
@@ -718,6 +725,7 @@ canvas.addEventListener('click', e => {
     if (drag) return;
     if (isDrawing) return;
     if (draggingNote) return;
+    if (wasDragged) return; // Не обрабатываем клик, если был drag
     
     let x = e.clientX, y = e.clientY;
     let note = noteAt(x, y);
@@ -730,30 +738,8 @@ canvas.addEventListener('click', e => {
             } else {
                 window.open('https://' + note.text, '_blank');
             }
-        } else {
-            const coords = getCoordinates(note.text);
-            if (coords) {
-                const startX = offsetX;
-                const startY = offsetY;
-                const targetX = coords.x - window.innerWidth / 2;
-                const targetY = coords.y - window.innerHeight / 2;
-                const duration = 500;
-                const startTime = performance.now();
-                
-                function animate(currentTime) {
-                    const elapsed = currentTime - startTime;
-                    const progress = Math.min(elapsed / duration, 1);
-                    const easeOutCubic = 1 - Math.pow(1 - progress, 3);
-                    offsetX = startX + (targetX - startX) * easeOutCubic;
-                    offsetY = startY + (targetY - startY) * easeOutCubic;
-                    draw();
-                    if (progress < 1) {
-                        requestAnimationFrame(animate);
-                    }
-                }
-                requestAnimationFrame(animate);
-            }
         }
+        // Переход по координатам теперь только в mouseup
     }
 });
 
