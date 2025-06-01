@@ -7,6 +7,104 @@ document.head.appendChild(fontLink);
 // Определяем шрифт по умолчанию
 var defaultFont = 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
 
+// Добавляем стили для toast
+const toastStyles = {
+    position: 'fixed',
+    top: '20px',
+    right: '20px',
+    padding: '12px 24px',
+    background: 'rgba(0, 0, 0, 0.8)',
+    color: '#fff',
+    borderRadius: '4px',
+    fontFamily: defaultFont,
+    fontSize: '14px',
+    zIndex: '1000',
+    opacity: '0',
+    transform: 'translateY(-20px)',
+    transition: 'opacity 0.3s ease, transform 0.3s ease',
+    pointerEvents: 'none'
+};
+
+// Функция для показа toast
+function showToast(message, duration = 3000) {
+    const toast = document.createElement('div');
+    Object.assign(toast.style, toastStyles);
+    toast.textContent = message;
+    document.body.appendChild(toast);
+
+    // Показываем toast
+    requestAnimationFrame(() => {
+        toast.style.opacity = '1';
+        toast.style.transform = 'translateY(0)';
+    });
+
+    // Скрываем и удаляем toast
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(-20px)';
+        setTimeout(() => {
+            document.body.removeChild(toast);
+        }, 300);
+    }, duration);
+}
+
+// Добавляем переменные для темы
+const themes = {
+    light: {
+        background: '#FFF9E3',
+        dots: '#E6DFAF',
+        storage: '#FFFFFF'
+    },
+    dark: {
+        background: '#1A1A1A',
+        dots: '#333333',
+        storage: '#2D2D2D'
+    }
+};
+
+let currentTheme = 'light';
+
+// Функция для переключения темы
+function toggleTheme() {
+    currentTheme = currentTheme === 'light' ? 'dark' : 'light';
+    canvas.style.background = themes[currentTheme].background;
+    draw();
+    saveToStorage();
+    return `Тема переключена на ${currentTheme === 'light' ? 'светлую' : 'тёмную'}`;
+}
+
+// Система команд
+const commands = {
+    'тема': () => {
+        return toggleTheme();
+    },
+    'помощь': () => {
+        return 'Список команд: !тема, !помощь';
+    }
+};
+
+// Функция для обработки команд
+function handleCommand(text) {
+    const command = text.slice(1); // Убираем "!" из начала
+    if (commands[command]) {
+        return commands[command]();
+    }
+    return null;
+}
+
+// Функция для проверки, является ли текст командой
+function isCommand(text) {
+    return text.startsWith('!') && commands[text.slice(1)];
+}
+
+// Функция для выполнения команды
+function executeCommand(text) {
+    const result = handleCommand(text);
+    if (result) {
+        showToast(result);
+    }
+}
+
 const canvas = document.createElement('canvas');
 const ctx = canvas.getContext('2d', { alpha: true });
 // Включаем сглаживание для изображений
@@ -18,7 +116,7 @@ canvas.style.position = 'fixed';
 canvas.style.top = 0;
 canvas.style.left = 0;
 canvas.style.zIndex = 0;
-canvas.style.background = '#FFF9E3'; // светло-желтый
+canvas.style.background = themes[currentTheme].background;
 
 let width = window.innerWidth;
 let height = window.innerHeight;
@@ -59,11 +157,12 @@ storageArea.style.bottom = '0';
 storageArea.style.left = '0';
 storageArea.style.width = '100%';
 storageArea.style.height = '100px';
-storageArea.style.background = '#E8E8E8';
+storageArea.style.background = themes[currentTheme].storage;
 storageArea.style.opacity = '0';
 storageArea.style.transition = 'opacity 0.3s ease';
 storageArea.style.zIndex = '1';
 storageArea.style.pointerEvents = 'none';
+storageArea.style.boxShadow = '0 -2px 10px rgba(0, 0, 0, 0.1)';
 document.body.appendChild(storageArea);
 
 // Устанавливаем размеры canvas для области хранения
@@ -164,14 +263,17 @@ document.body.addEventListener('mousemove', e => {
 // Добавляем переменную для хранения заметок в области
 let storedNotes = [];
 
+// Добавляем начальные заметки для обучения
+const initialNotes = [{"type":"text","text":"!тема","x":-492,"y":-31,"fontSize":24,"colorIndex":0,"rotation":0.0315720072865151},{"type":"text","text":"infinote","x":-496,"y":-246,"fontSize":64,"colorIndex":4,"rotation":-0.016466621327403088},{"type":"text","text":"Бесконечное полотно для заметок","x":-499,"y":-155,"fontSize":26,"colorIndex":0,"rotation":-0.008499042357624609},{"type":"text","text":"(0,0)","x":-492,"y":70,"fontSize":26,"colorIndex":0,"rotation":-0.02871996452575524},{"type":"text","text":"Базовая поддержка команд","x":-400,"y":0,"fontSize":16,"colorIndex":0,"rotation":0.03344130641089998},{"type":"text","text":"Телепорт на координаты","x":-395,"y":92,"fontSize":16,"colorIndex":0,"rotation":0.03749530737904807},{"type":"text","text":"x.com","x":-500,"y":183,"fontSize":26,"colorIndex":0,"rotation":0.04356517036950585},{"type":"text","text":"Поддержка ссылок","x":-386,"y":185,"fontSize":16,"colorIndex":0,"rotation":-0.041273141112721096},{"type":"text","text":"(0,1000)","x":-492,"y":116,"fontSize":16,"colorIndex":0,"rotation":-0.023965877712914464},{"type":"text","text":"Да, работает","x":-363,"y":942,"fontSize":62,"colorIndex":2,"rotation":-0.01233387292061492},{"type":"text","text":"(0,0)","x":-346,"y":1055,"fontSize":36,"colorIndex":0,"rotation":0.027643305932098308},{"type":"text","text":"Вернуться обратно","x":-236,"y":1065,"fontSize":16,"colorIndex":0,"rotation":0.046072682368420506},{"type":"text","text":"t.me","x":-453,"y":218,"fontSize":20,"colorIndex":0,"rotation":-0.026559708895696144},{"type":"text","text":"ya.ru","x":-506,"y":231,"fontSize":16,"colorIndex":0,"rotation":-0.005724234932458683},{"type":"text","text":"!помощь","x":-493,"y":11,"fontSize":16,"colorIndex":0,"rotation":-0.024532390157736197},{"type":"text","text":"и чего нибудь еще","x":-182,"y":-117,"fontSize":16,"colorIndex":1,"rotation":0.003335086549189004}]
+
 // Точки на фоне
 function drawDots() {
     const spacing = 40;
     ctx.save();
     ctx.clearRect(0, 0, width, height);
-    ctx.fillStyle = '#FFF9E3';
+    ctx.fillStyle = themes[currentTheme].background;
     ctx.fillRect(0, 0, width, height);
-    ctx.fillStyle = '#E6DFAF';
+    ctx.fillStyle = themes[currentTheme].dots;
     for (let x = -offsetX % spacing; x < width; x += spacing) {
         for (let y = -offsetY % spacing; y < height; y += spacing) {
             ctx.beginPath();
@@ -190,13 +292,35 @@ let dragNoteOffset = {x:0, y:0};
 let fontSize = 16;
 
 // Цветовые схемы для заметок
-const colorSchemes = [
-    { bg: '#FFF9E3', text: '#222' }, // Светло-желтый (по умолчанию)
-    { bg: '#E3F2FD', text: '#1565C0' }, // Светло-синий
-    { bg: '#E8F5E9', text: '#2E7D32' }, // Светло-зеленый
-    { bg: '#FCE4EC', text: '#C2185B' }, // Светло-розовый
-    { bg: '#F3E5F5', text: '#7B1FA2' }, // Светло-фиолетовый
-];
+const colorSchemes = {
+    light: [
+        { bg: '#FFF9E3', text: '#222' }, // Светло-желтый (по умолчанию)
+        { bg: '#E3F2FD', text: '#1565C0' }, // Светло-синий
+        { bg: '#E8F5E9', text: '#2E7D32' }, // Светло-зеленый
+        { bg: '#FCE4EC', text: '#C2185B' }, // Светло-розовый
+        { bg: '#F3E5F5', text: '#7B1FA2' }, // Светло-фиолетовый
+    ],
+    dark: [
+        { bg: '#2D2D2D', text: '#E0E0E0' }, // Темно-серый (по умолчанию)
+        { bg: '#1A237E', text: '#E3F2FD' }, // Темно-синий
+        { bg: '#1B5E20', text: '#E8F5E9' }, // Темно-зеленый
+        { bg: '#880E4F', text: '#FCE4EC' }, // Темно-розовый
+        { bg: '#4A148C', text: '#F3E5F5' }, // Темно-фиолетовый
+    ]
+};
+
+// Функция для получения цвета заметки в зависимости от темы
+function getNoteColor(note, theme) {
+    if (!note.colorIndex) {
+        return colorSchemes[theme][0];
+    }
+    return colorSchemes[theme][note.colorIndex];
+}
+
+// Функция для получения текущей цветовой схемы
+function getCurrentColorScheme() {
+    return colorSchemes[currentTheme];
+}
 
 // Обновляем функцию проверки на URL, добавляя поддержку координат
 function isUrl(text) {
@@ -253,8 +377,7 @@ function saveToStorage() {
                 width: note.width,
                 height: note.height,
                 fontSize: note.fontSize,
-                bgColor: note.bgColor || colorSchemes[0].bg,
-                textColor: note.textColor || colorSchemes[0].text,
+                colorIndex: note.colorIndex || 0,
                 rotation: note.rotation,
                 isMultiLine: note.isMultiLine,
                 lineHeight: note.lineHeight
@@ -284,8 +407,7 @@ function saveToStorage() {
                 width: note.width,
                 height: note.height,
                 fontSize: note.fontSize,
-                bgColor: note.bgColor || colorSchemes[0].bg,
-                textColor: note.textColor || colorSchemes[0].text,
+                colorIndex: note.colorIndex || 0,
                 rotation: note.rotation,
                 isMultiLine: note.isMultiLine,
                 lineHeight: note.lineHeight
@@ -296,9 +418,17 @@ function saveToStorage() {
     localStorage.setItem('canvasNotes', JSON.stringify(notesToSave));
     localStorage.setItem('storedNotes', JSON.stringify(storedNotesToSave));
     localStorage.setItem('canvasOffset', JSON.stringify({ x: offsetX, y: offsetY }));
+    localStorage.setItem('currentTheme', currentTheme);
 }
 
 function loadFromStorage() {
+    // Загружаем тему
+    const savedTheme = localStorage.getItem('currentTheme');
+    if (savedTheme) {
+        currentTheme = savedTheme;
+        canvas.style.background = themes[currentTheme].background;
+    }
+
     // Загружаем заметки
     const savedNotes = localStorage.getItem('canvasNotes');
     if (savedNotes) {
@@ -324,11 +454,21 @@ function loadFromStorage() {
                 notes.push({
                     ...note,
                     text: note.text || '',
-                    bgColor: note.bgColor || colorSchemes[0].bg,
-                    textColor: note.textColor || colorSchemes[0].text
+                    colorIndex: note.colorIndex || 0
                 });
             }
         });
+    } else {
+        // Если заметок нет, добавляем начальные заметки
+        initialNotes.forEach(note => {
+            notes.push({
+                ...note,
+                text: note.text || '',
+                colorIndex: note.colorIndex || 0
+            });
+        });
+        // Сохраняем начальные заметки в localStorage
+        saveToStorage();
     }
 
     // Загружаем заметки из области хранения
@@ -356,8 +496,7 @@ function loadFromStorage() {
                 storedNotes.push({
                     ...note,
                     text: note.text || '',
-                    bgColor: note.bgColor || colorSchemes[0].bg,
-                    textColor: note.textColor || colorSchemes[0].text
+                    colorIndex: note.colorIndex || 0
                 });
             }
         });
@@ -472,7 +611,7 @@ function draw() {
     if (storageArea.style.opacity === '1') {
         // Очищаем область хранения
         storageCtx.clearRect(0, 0, storageArea.width, storageArea.height);
-        storageCtx.fillStyle = '#E8E8E8';
+        storageCtx.fillStyle = themes[currentTheme].storage;
         storageCtx.fillRect(0, 0, storageArea.width, storageArea.height);
 
         const noteSpacing = 10;
@@ -522,7 +661,7 @@ function draw() {
                 storageCtx.translate(currentX, currentY);
                 
                 // Рисуем фон для изображения
-                storageCtx.fillStyle = '#FFFFFF';
+                storageCtx.fillStyle = themes[currentTheme].storage;
                 storageCtx.fillRect(0, 0, noteWidth, noteHeight);
                 
                 // Рисуем само изображение
@@ -531,7 +670,7 @@ function draw() {
                 // Рисуем подпись, если есть
                 if (note.caption) {
                     storageCtx.font = `12px ${defaultFont}`;
-                    storageCtx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                    storageCtx.fillStyle = currentTheme === 'light' ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.7)';
                     storageCtx.textAlign = 'center';
                     storageCtx.textBaseline = 'top';
                     storageCtx.fillText(note.caption, noteWidth / 2, noteHeight + 4);
@@ -561,12 +700,13 @@ function draw() {
                 storageCtx.translate(currentX, currentY);
                 
                 // Рисуем фон заметки
-                storageCtx.fillStyle = note.bgColor || colorSchemes[0].bg;
+                const noteColors = getNoteColor(note, currentTheme);
+                storageCtx.fillStyle = noteColors.bg;
                 storageCtx.fillRect(0, 0, noteWidth, noteHeight);
                 
                 // Рисуем текст с учетом границ
                 storageCtx.font = `${note.fontSize || fontSize}px ${defaultFont}`;
-                storageCtx.fillStyle = note.textColor || colorSchemes[0].text;
+                storageCtx.fillStyle = noteColors.text;
                 
                 // Обрезаем текст, если он не помещается
                 let text = note.text;
@@ -648,7 +788,7 @@ function drawNote(note) {
             }
             
             ctx.font = `14px ${defaultFont}`;
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+            ctx.fillStyle = currentTheme === 'light' ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.7)';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'top';
             ctx.fillText(note.caption, x + width/2, y + height + 8);
@@ -699,11 +839,13 @@ function drawNote(note) {
             ctx.translate(-(x + width/2), -(y + height/2));
         }
         
-        ctx.fillStyle = note.bgColor || colorSchemes[0].bg;
+        // Используем цвета в зависимости от темы
+        const noteColors = getNoteColor(note, currentTheme);
+        ctx.fillStyle = noteColors.bg;
         ctx.fill();
         
         if (note === hoveredNote) {
-            ctx.strokeStyle = 'rgba(0, 102, 204, 0.5)';
+            ctx.strokeStyle = currentTheme === 'light' ? 'rgba(0, 102, 204, 0.5)' : 'rgba(66, 165, 245, 0.5)';
             ctx.lineWidth = 2;
             ctx.stroke();
         }
@@ -714,9 +856,9 @@ function drawNote(note) {
         
         if (isUrl(note.text)) {
             if (getCoordinates(note.text)) {
-                ctx.fillStyle = '#2E7D32';
+                ctx.fillStyle = currentTheme === 'light' ? '#2E7D32' : '#81C784';
             } else {
-                ctx.fillStyle = '#0066cc';
+                ctx.fillStyle = currentTheme === 'light' ? '#0066cc' : '#64B5F6';
             }
             ctx.fillText(note.text, x + padding, y + padding);
             ctx.beginPath();
@@ -724,8 +866,16 @@ function drawNote(note) {
             ctx.lineTo(x + padding + ctx.measureText(note.text).width, y + padding + (note.fontSize || fontSize));
             ctx.strokeStyle = ctx.fillStyle;
             ctx.stroke();
+        } else if (isCommand(note.text)) {
+            ctx.fillStyle = currentTheme === 'light' ? '#7B1FA2' : '#CE93D8';
+            ctx.fillText(note.text, x + padding, y + padding);
+            ctx.beginPath();
+            ctx.moveTo(x + padding, y + padding + (note.fontSize || fontSize));
+            ctx.lineTo(x + padding + ctx.measureText(note.text).width, y + padding + (note.fontSize || fontSize));
+            ctx.strokeStyle = ctx.fillStyle;
+            ctx.stroke();
         } else {
-            ctx.fillStyle = note.textColor || colorSchemes[0].text;
+            ctx.fillStyle = noteColors.text;
             if (note.isMultiLine) {
                 const lines = note.text.split('\n');
                 const lineHeight = (note.fontSize || fontSize) * (note.lineHeight || 1.2);
@@ -751,7 +901,9 @@ function drawNote(note) {
             ctx.lineTo(x + width, y + height - 10);
             ctx.lineTo(x + width, y + height);
             ctx.closePath();
-            ctx.fillStyle = note === hoveredNote ? 'rgba(0, 102, 204, 0.5)' : 'rgba(0, 0, 0, 0.3)';
+            ctx.fillStyle = note === hoveredNote 
+                ? (currentTheme === 'light' ? 'rgba(0, 102, 204, 0.5)' : 'rgba(66, 165, 245, 0.5)')
+                : (currentTheme === 'light' ? 'rgba(0, 0, 0, 0.3)' : 'rgba(255, 255, 255, 0.3)');
             ctx.fill();
         }
     }
@@ -1110,10 +1262,13 @@ canvas.addEventListener('click', e => {
     if (wasDragged) return; // Не обрабатываем клик, если был drag
     
     let x = e.clientX, y = e.clientY;
-    let note = noteAt(x, y);
-    if (!note) {
+    let result = noteAt(x, y);
+    if (!result) {
         return;
-    } else if (isUrl(note.text)) {
+    }
+    
+    const note = result.note;
+    if (isUrl(note.text)) {
         if (e.ctrlKey) {
             if (note.text.startsWith('http://') || note.text.startsWith('https://')) {
                 window.open(note.text, '_blank');
@@ -1121,7 +1276,8 @@ canvas.addEventListener('click', e => {
                 window.open('https://' + note.text, '_blank');
             }
         }
-        // Переход по координатам теперь только в mouseup
+    } else if (isCommand(note.text)) {
+        executeCommand(note.text);
     }
 });
 
@@ -1129,19 +1285,20 @@ canvas.addEventListener('click', e => {
 canvas.addEventListener('wheel', e => {
     if (e.ctrlKey) return;
     let x = e.clientX, y = e.clientY;
-    let note = noteAt(x, y);
-    if (note) {
+    let result = noteAt(x, y);
+    if (result) {
         e.preventDefault();
+        const note = result.note;
         if (note.type === 'image') {
             const scale = e.deltaY < 0 ? 1.1 : 0.9;
             note.width *= scale;
             note.height *= scale;
         } else {
-        note.fontSize = note.fontSize || fontSize;
-        if (e.deltaY < 0) {
-            note.fontSize = Math.min(note.fontSize + 2, 64);
-        } else {
-            note.fontSize = Math.max(note.fontSize - 2, 8);
+            note.fontSize = note.fontSize || fontSize;
+            if (e.deltaY < 0) {
+                note.fontSize = Math.min(note.fontSize + 2, 64);
+            } else {
+                note.fontSize = Math.max(note.fontSize - 2, 8);
             }
         }
         draw();
@@ -1189,7 +1346,7 @@ function createContextMenu(x, y, result) {
         colorContainer.style.marginBottom = '8px';
         
         // Добавляем опции выбора цвета
-        colorSchemes.forEach(scheme => {
+        colorSchemes[currentTheme].forEach((scheme, index) => {
             const colorBox = document.createElement('div');
             colorBox.style.width = '24px';
             colorBox.style.height = '24px';
@@ -1199,7 +1356,6 @@ function createContextMenu(x, y, result) {
             colorBox.style.cursor = 'pointer';
             colorBox.style.transition = 'transform 0.1s';
             
-            // Добавляем эффект при наведении
             colorBox.addEventListener('mouseover', () => {
                 colorBox.style.transform = 'scale(1.1)';
             });
@@ -1208,11 +1364,7 @@ function createContextMenu(x, y, result) {
             });
             
             colorBox.addEventListener('click', () => {
-                console.log('Color box clicked:', scheme);
-                console.log('Note before color change:', note);
-                note.bgColor = scheme.bg;
-                note.textColor = scheme.text;
-                console.log('Note after color change:', note);
+                note.colorIndex = index;
                 menu.remove();
                 draw();
                 saveToStorage();
@@ -1264,9 +1416,9 @@ function createContextMenu(x, y, result) {
 canvas.addEventListener('contextmenu', e => {
     e.preventDefault(); // Предотвращаем стандартное контекстное меню
     let x = e.clientX, y = e.clientY;
-    let note = noteAt(x, y);
-    if (note) {
-        createContextMenu(x, y, note);
+    let result = noteAt(x, y);
+    if (result) {
+        createContextMenu(x, y, result);
     }
 });
 
@@ -1303,7 +1455,8 @@ function createMultiLineInput(startX, endX, startY, endY, existingNote = null) {
     textarea.style.zIndex = '10';
     textarea.style.fontSize = (existingNote ? existingNote.fontSize : fontSize) + 'px';
     textarea.style.fontFamily = defaultFont;
-    textarea.style.background = existingNote ? (existingNote.bgColor || colorSchemes[0].bg) : colorSchemes[0].bg;
+    const noteColors = getNoteColor(existingNote || {}, currentTheme);
+    textarea.style.background = noteColors.bg;
     textarea.style.border = '1px solid #E6DFAF';
     textarea.style.padding = '8px';
     textarea.style.resize = 'none';
@@ -1313,7 +1466,7 @@ function createMultiLineInput(startX, endX, startY, endY, existingNote = null) {
     textarea.style.overflow = 'auto';
     textarea.style.whiteSpace = 'pre-wrap';
     textarea.style.wordWrap = 'break-word';
-    textarea.style.color = existingNote ? (existingNote.textColor || colorSchemes[0].text) : colorSchemes[0].text;
+    textarea.style.color = noteColors.text;
     
     if (existingNote) {
         console.log('Setting textarea value to:', existingNote.text);
@@ -1329,8 +1482,7 @@ function createMultiLineInput(startX, endX, startY, endY, existingNote = null) {
             if (existingNote) {
                 console.log('Updating existing note:', existingNote);
                 existingNote.text = textarea.value;
-                existingNote.bgColor = existingNote.bgColor || colorSchemes[0].bg;
-                existingNote.textColor = existingNote.textColor || colorSchemes[0].text;
+                existingNote.colorIndex = existingNote.colorIndex || 0;
             } else {
                 console.log('Creating new note');
                 notes.push({
@@ -1340,10 +1492,11 @@ function createMultiLineInput(startX, endX, startY, endY, existingNote = null) {
                     width: width,
                     height: height,
                     fontSize: fontSize,
+                    colorIndex: existingNote.colorIndex || 0,
                     isMultiLine: true,
                     lineHeight: 1.2,
-                    bgColor: colorSchemes[0].bg,
-                    textColor: colorSchemes[0].text
+                    bgColor: noteColors.bg,
+                    textColor: noteColors.text
                 });
             }
         }
@@ -1378,27 +1531,38 @@ function createSingleLineInput(x, y, note) {
     input.style.zIndex = '10';
     input.style.fontSize = (note ? (note.fontSize || fontSize) : fontSize) + 'px';
     input.style.fontFamily = defaultFont;
-    input.style.background = note ? (note.bgColor || colorSchemes[0].bg) : colorSchemes[0].bg;
+    const noteColors = getNoteColor(note || {}, currentTheme);
+    input.style.background = noteColors.bg;
     input.style.border = '1px solid #E6DFAF';
     input.style.padding = '2px 4px';
-    input.style.color = note ? (note.textColor || colorSchemes[0].text) : colorSchemes[0].text;
+    input.style.color = noteColors.text;
     document.body.appendChild(input);
     input.focus();
 
     const handleSubmit = () => {
         if (note) {
             note.text = input.value;
-            note.bgColor = note.bgColor || colorSchemes[0].bg;
-            note.textColor = note.textColor || colorSchemes[0].text;
+            note.colorIndex = note.colorIndex || 0;
         } else if (input.value.trim()) {
-            notes.push({
-                text: input.value,
-                x: x,
-                y: y,
-                fontSize: fontSize,
-                bgColor: colorSchemes[0].bg,
-                textColor: colorSchemes[0].text
-            });
+            // Проверяем, является ли текст командой
+            if (input.value.startsWith('/')) {
+                notes.push({
+                    text: input.value,
+                    x: x,
+                    y: y,
+                    fontSize: fontSize,
+                    colorIndex: 0
+                });
+                executeCommand(input.value);
+            } else {
+                notes.push({
+                    text: input.value,
+                    x: x,
+                    y: y,
+                    fontSize: fontSize,
+                    colorIndex: 0
+                });
+            }
         }
         input.remove();
         editingNote = null;
