@@ -4,6 +4,9 @@ fontLink.href = 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600
 fontLink.rel = 'stylesheet';
 document.head.appendChild(fontLink);
 
+// Определяем шрифт по умолчанию
+var defaultFont = 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+
 const canvas = document.createElement('canvas');
 const ctx = canvas.getContext('2d', { alpha: true });
 // Включаем сглаживание для изображений
@@ -46,6 +49,121 @@ let hoveredNote = null;
 // Добавляем переменную для отслеживания перетаскивания
 let wasDragged = false;
 
+// Добавляем переменную для отслеживания заметки из хранилища
+let isFromStorage = false;
+
+// Создаем область для временного хранения заметок
+const storageArea = document.createElement('canvas');
+storageArea.style.position = 'fixed';
+storageArea.style.bottom = '0';
+storageArea.style.left = '0';
+storageArea.style.width = '100%';
+storageArea.style.height = '100px';
+storageArea.style.background = '#E8E8E8';
+storageArea.style.opacity = '0';
+storageArea.style.transition = 'opacity 0.3s ease';
+storageArea.style.zIndex = '1';
+storageArea.style.pointerEvents = 'none';
+document.body.appendChild(storageArea);
+
+// Устанавливаем размеры canvas для области хранения
+storageArea.width = window.innerWidth;
+storageArea.height = 100;
+
+// Получаем контекст для области хранения
+const storageCtx = storageArea.getContext('2d');
+
+// Добавляем переменную для отслеживания состояния хранилища
+let isStorageVisible = false;
+
+// Добавляем обработчики событий для области хранения
+storageArea.addEventListener('mousedown', e => {
+    if (!isStorageVisible) return;
+    
+    let x = e.clientX, y = e.clientY;
+    let result = noteAt(x, y);
+    let note = result ? result.note : null;
+    let isStored = result ? result.isStored : false;
+
+    if (note && isStored) {
+        e.preventDefault();
+        draggingNote = note;
+        note.isDragging = true;
+        note.rotation = 0;
+        isFromStorage = true; // Устанавливаем флаг
+
+        // Удаляем заметку из хранилища
+        const index = storedNotes.indexOf(note);
+        if (index > -1) {
+            storedNotes.splice(index, 1);
+            
+            // Вычисляем начальную позицию заметки
+            note.x = x + offsetX;
+            note.y = y + offsetY;
+            
+            // Вычисляем смещение для перетаскивания
+            dragNoteOffset.x = 0;
+            dragNoteOffset.y = 0;
+            
+            // Добавляем заметку на канвас
+            notes.push(note);
+            
+            // Немедленно обновляем отображение
+            draw();
+            saveToStorage();
+        }
+    }
+});
+
+storageArea.addEventListener('mousemove', e => {
+    if (!isStorageVisible) return;
+    
+    let x = e.clientX, y = e.clientY;
+    let result = noteAt(x, y);
+    let note = result ? result.note : null;
+    
+    if (note && result.isStored) {
+        storageArea.style.cursor = 'pointer';
+    } else {
+        storageArea.style.cursor = 'default';
+    }
+});
+
+storageArea.addEventListener('mouseup', e => {
+    if (draggingNote) {
+        draggingNote.isDragging = false;
+        draggingNote = null;
+        draw();
+        saveToStorage();
+    }
+});
+
+// Обновляем обработчик для отображения области при наведении
+document.body.addEventListener('mousemove', e => {
+    const activationHeight = 20; // Область активации для показа хранилища
+    if (e.clientY > window.innerHeight - activationHeight || draggingNote) {
+        if (!isStorageVisible) {
+            isStorageVisible = true;
+            storageArea.style.opacity = '1';
+            storageArea.style.pointerEvents = 'auto';
+            draw(); // Перерисовываем для обновления хранилища
+        }
+    } else if (isStorageVisible && e.clientY > window.innerHeight - 100) {
+        // Если мышь над хранилищем, оно остается видимым
+        isStorageVisible = true;
+        storageArea.style.opacity = '1';
+        storageArea.style.pointerEvents = 'auto';
+    } else if (isStorageVisible && !draggingNote) {
+        isStorageVisible = false;
+        storageArea.style.opacity = '0';
+        storageArea.style.pointerEvents = 'none';
+        draw();
+    }
+});
+
+// Добавляем переменную для хранения заметок в области
+let storedNotes = [];
+
 // Точки на фоне
 function drawDots() {
     const spacing = 40;
@@ -70,7 +188,6 @@ let editingNote = null;
 let draggingNote = null;
 let dragNoteOffset = {x:0, y:0};
 let fontSize = 16;
-const defaultFont = 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
 
 // Цветовые схемы для заметок
 const colorSchemes = [
@@ -112,12 +229,11 @@ function getFullUrl(text) {
     return 'https://' + text;
 }
 
-// Добавляем функции для работы с localStorage
+// Обновляем функции для работы с localStorage
 function saveToStorage() {
     // Сохраняем заметки
     const notesToSave = notes.map(note => {
         if (note.type === 'image') {
-            // Для изображений сохраняем только необходимые данные
             return {
                 type: 'image',
                 x: note.x,
@@ -126,29 +242,59 @@ function saveToStorage() {
                 height: note.height,
                 rotation: note.rotation,
                 caption: note.caption,
-                image: note.image.src // Сохраняем только URL изображения
+                image: note.image.src
             };
         } else {
-            // Для текстовых заметок сохраняем все свойства
             return {
                 type: 'text',
-                text: note.text,
+                text: note.text || '',
                 x: note.x,
                 y: note.y,
                 width: note.width,
                 height: note.height,
                 fontSize: note.fontSize,
-                bgColor: note.bgColor,
-                textColor: note.textColor,
+                bgColor: note.bgColor || colorSchemes[0].bg,
+                textColor: note.textColor || colorSchemes[0].text,
                 rotation: note.rotation,
                 isMultiLine: note.isMultiLine,
                 lineHeight: note.lineHeight
             };
         }
     });
+
+    // Сохраняем заметки в области хранения
+    const storedNotesToSave = storedNotes.map(note => {
+        if (note.type === 'image') {
+            return {
+                type: 'image',
+                x: note.x,
+                y: note.y,
+                width: note.width,
+                height: note.height,
+                rotation: note.rotation,
+                caption: note.caption,
+                image: note.image.src
+            };
+        } else {
+            return {
+                type: 'text',
+                text: note.text || '',
+                x: note.x,
+                y: note.y,
+                width: note.width,
+                height: note.height,
+                fontSize: note.fontSize,
+                bgColor: note.bgColor || colorSchemes[0].bg,
+                textColor: note.textColor || colorSchemes[0].text,
+                rotation: note.rotation,
+                isMultiLine: note.isMultiLine,
+                lineHeight: note.lineHeight
+            };
+        }
+    });
+
     localStorage.setItem('canvasNotes', JSON.stringify(notesToSave));
-    
-    // Сохраняем позицию полотна
+    localStorage.setItem('storedNotes', JSON.stringify(storedNotesToSave));
     localStorage.setItem('canvasOffset', JSON.stringify({ x: offsetX, y: offsetY }));
 }
 
@@ -159,9 +305,7 @@ function loadFromStorage() {
         const parsedNotes = JSON.parse(savedNotes);
         parsedNotes.forEach(note => {
             if (note.type === 'image') {
-                // Для изображений создаем новый объект Image
                 const img = new Image();
-                img.src = note.image;
                 img.onload = () => {
                     notes.push({
                         type: 'image',
@@ -175,9 +319,46 @@ function loadFromStorage() {
                     });
                     draw();
                 };
+                img.src = note.image;
             } else {
-                // Для текстовых заметок просто добавляем их в массив
-                notes.push(note);
+                notes.push({
+                    ...note,
+                    text: note.text || '',
+                    bgColor: note.bgColor || colorSchemes[0].bg,
+                    textColor: note.textColor || colorSchemes[0].text
+                });
+            }
+        });
+    }
+
+    // Загружаем заметки из области хранения
+    const savedStoredNotes = localStorage.getItem('storedNotes');
+    if (savedStoredNotes) {
+        const parsedStoredNotes = JSON.parse(savedStoredNotes);
+        parsedStoredNotes.forEach(note => {
+            if (note.type === 'image') {
+                const img = new Image();
+                img.onload = () => {
+                    storedNotes.push({
+                        type: 'image',
+                        x: note.x,
+                        y: note.y,
+                        width: note.width,
+                        height: note.height,
+                        rotation: note.rotation,
+                        caption: note.caption,
+                        image: img
+                    });
+                    draw();
+                };
+                img.src = note.image;
+            } else {
+                storedNotes.push({
+                    ...note,
+                    text: note.text || '',
+                    bgColor: note.bgColor || colorSchemes[0].bg,
+                    textColor: note.textColor || colorSchemes[0].text
+                });
             }
         });
     }
@@ -284,197 +465,361 @@ function draw() {
     
     // Рисуем заметки
     notes.forEach(note => {
-        ctx.save();
-        
-        if (note.type === 'image') {
-            const x = note.x - offsetX;
-            const y = note.y - offsetY;
-            const width = note.width;
-            const height = note.height;
-            const cornerRadius = 6;
-            
-            // Если изображение перетаскивается, увеличиваем его и добавляем тень
-            const scale = note.isDragging ? 1.05 : 1;
-            const shadowBlur = note.isDragging ? 10 : 0;
-            const shadowOffset = note.isDragging ? 5 : 0;
-            
-            // Применяем наклон
-            if (note.rotation) {
-                ctx.translate(x + width/2, y + height/2);
-                ctx.rotate(note.rotation);
-                ctx.translate(-(x + width/2), -(y + height/2));
-            }
-            
-            // Рисуем тень
-            if (shadowBlur > 0) {
-                ctx.shadowColor = 'rgba(0, 0, 0, 0.2)';
-                ctx.shadowBlur = shadowBlur;
-                ctx.shadowOffsetY = shadowOffset;
-            }
-            
-            // Создаем путь для скругленного прямоугольника
-            ctx.beginPath();
-            ctx.moveTo(x + cornerRadius, y);
-            ctx.lineTo(x + width - cornerRadius, y);
-            ctx.quadraticCurveTo(x + width, y, x + width, y + cornerRadius);
-            ctx.lineTo(x + width, y + height - cornerRadius);
-            ctx.quadraticCurveTo(x + width, y + height, x + width - cornerRadius, y + height);
-            ctx.lineTo(x + cornerRadius, y + height);
-            ctx.quadraticCurveTo(x, y + height, x, y + height - cornerRadius);
-            ctx.lineTo(x, y + cornerRadius);
-            ctx.quadraticCurveTo(x, y, x + cornerRadius, y);
-            ctx.closePath();
-            
-            // Применяем масштаб
-            if (scale !== 1) {
-                ctx.translate(x + width/2, y + height/2);
-                ctx.scale(scale, scale);
-                ctx.translate(-(x + width/2), -(y + height/2));
-            }
-            
-            // Рисуем изображение
-            ctx.clip();
-            ctx.drawImage(note.image, x, y, width, height);
-            
-            // Рисуем подпись, если она есть
-            if (note.caption) {
-                ctx.restore();
-                ctx.save();
-                
-                // Применяем те же трансформации для подписи
-                if (note.rotation) {
-                    ctx.translate(x + width/2, y + height/2);
-                    ctx.rotate(note.rotation);
-                    ctx.translate(-(x + width/2), -(y + height/2));
-                }
-                
-                if (scale !== 1) {
-                    ctx.translate(x + width/2, y + height/2);
-                    ctx.scale(scale, scale);
-                    ctx.translate(-(x + width/2), -(y + height/2));
-                }
-                
-                ctx.font = `14px ${defaultFont}`;
-                ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'top';
-                ctx.fillText(note.caption, x + width/2, y + height + 8);
-            }
-        } else {
-            ctx.font = `${note.fontSize || fontSize}px ${defaultFont}`;
-            ctx.textBaseline = 'top';
-            
-            const padding = 8;
-            const cornerRadius = 6;
-            
-            const x = note.x - offsetX;
-            const y = note.y - offsetY;
-            const width = note.isMultiLine ? note.width : ctx.measureText(note.text).width + padding * 2;
-            const height = note.isMultiLine ? note.height : (note.fontSize || fontSize) + padding * 2;
-            
-            const scale = note.isDragging ? 1.05 : 1;
-            const shadowBlur = note.isDragging ? 10 : 0;
-            const shadowOffset = note.isDragging ? 5 : 0;
-            
-            if (note.rotation) {
-                ctx.translate(x + width/2, y + height/2);
-                ctx.rotate(note.rotation);
-                ctx.translate(-(x + width/2), -(y + height/2));
-            }
-            
-            if (shadowBlur > 0) {
-                ctx.shadowColor = 'rgba(0, 0, 0, 0.2)';
-                ctx.shadowBlur = shadowBlur;
-                ctx.shadowOffsetY = shadowOffset;
-            }
-            
-            ctx.beginPath();
-            ctx.moveTo(x + cornerRadius, y);
-            ctx.lineTo(x + width - cornerRadius, y);
-            ctx.quadraticCurveTo(x + width, y, x + width, y + cornerRadius);
-            ctx.lineTo(x + width, y + height - cornerRadius);
-            ctx.quadraticCurveTo(x + width, y + height, x + width - cornerRadius, y + height);
-            ctx.lineTo(x + cornerRadius, y + height);
-            ctx.quadraticCurveTo(x, y + height, x, y + height - cornerRadius);
-            ctx.lineTo(x, y + cornerRadius);
-            ctx.quadraticCurveTo(x, y, x + cornerRadius, y);
-            ctx.closePath();
-            
-            if (scale !== 1) {
-                ctx.translate(x + width/2, y + height/2);
-                ctx.scale(scale, scale);
-                ctx.translate(-(x + width/2), -(y + height/2));
-            }
-            
-            ctx.fillStyle = note.bgColor || colorSchemes[0].bg;
-            ctx.fill();
-            
-            // Добавляем подсветку границ при наведении
-            if (note === hoveredNote) {
-                ctx.strokeStyle = 'rgba(0, 102, 204, 0.5)';
-                ctx.lineWidth = 2;
-                ctx.stroke();
-            }
-            
-            ctx.shadowColor = 'transparent';
-            ctx.shadowBlur = 0;
-            ctx.shadowOffsetY = 0;
-            
-            if (isUrl(note.text)) {
-                if (getCoordinates(note.text)) {
-                    ctx.fillStyle = '#2E7D32';
-                } else {
-                    ctx.fillStyle = '#0066cc';
-                }
-                ctx.fillText(note.text, x + padding, y + padding);
-                ctx.beginPath();
-                ctx.moveTo(x + padding, y + padding + (note.fontSize || fontSize));
-                ctx.lineTo(x + padding + ctx.measureText(note.text).width, y + padding + (note.fontSize || fontSize));
-                ctx.strokeStyle = ctx.fillStyle;
-                ctx.stroke();
-            } else {
-                ctx.fillStyle = note.textColor || colorSchemes[0].text;
-                if (note.isMultiLine) {
-                    const lines = note.text.split('\n');
-                    const lineHeight = (note.fontSize || fontSize) * (note.lineHeight || 1.2);
-                    const maxWidth = width - padding * 2;
-                    
-                    // Вычисляем максимальное количество строк, которые поместятся в заметку
-                    const maxLines = Math.floor((height - padding * 2) / lineHeight);
-                    
-                    // Отображаем только те строки, которые помещаются
-                    lines.slice(0, maxLines).forEach((line, index) => {
-                        // Если строка слишком длинная, обрезаем её
-                        let displayLine = line;
-                        while (ctx.measureText(displayLine).width > maxWidth && displayLine.length > 0) {
-                            displayLine = displayLine.slice(0, -1);
-                        }
-                        ctx.fillText(displayLine, x + padding, y + padding + index * lineHeight);
-                    });
-                } else {
-                    ctx.fillText(note.text, x + padding, y + padding);
-                }
-            }
-
-            // Рисуем маркер изменения размера для многострочных заметок
-            if (note.isMultiLine) {
-                ctx.beginPath();
-                ctx.moveTo(x + width - 10, y + height);
-                ctx.lineTo(x + width, y + height - 10);
-                ctx.lineTo(x + width, y + height);
-                ctx.closePath();
-                ctx.fillStyle = note === hoveredNote ? 'rgba(0, 102, 204, 0.5)' : 'rgba(0, 0, 0, 0.3)';
-                ctx.fill();
-            }
-        }
-        ctx.restore();
+        drawNote(note);
     });
+
+    // Рисуем заметки в области хранения
+    if (storageArea.style.opacity === '1') {
+        // Очищаем область хранения
+        storageCtx.clearRect(0, 0, storageArea.width, storageArea.height);
+        storageCtx.fillStyle = '#E8E8E8';
+        storageCtx.fillRect(0, 0, storageArea.width, storageArea.height);
+
+        const noteSpacing = 10;
+        let currentX = noteSpacing;
+        let currentY = noteSpacing;
+
+        console.log('Drawing storage area. Notes count:', storedNotes.length);
+        storedNotes.forEach((note, index) => {
+            console.log(`Processing note ${index}:`, note);
+            const padding = 8;
+            let noteWidth, noteHeight;
+
+            if (note.type === 'image') {
+                console.log(`Note ${index} is an image:`, {
+                    image: note.image,
+                    complete: note.image ? note.image.complete : false,
+                    width: note.width,
+                    height: note.height
+                });
+
+                // Вычисляем размеры изображения с сохранением пропорций
+                const maxWidth = storageArea.width - noteSpacing * 2;
+                const maxHeight = 80; // Максимальная высота для изображений в хранилище
+                const aspectRatio = note.width / note.height;
+                
+                if (aspectRatio > 1) {
+                    // Широкое изображение
+                    noteWidth = Math.min(note.width, maxWidth);
+                    noteHeight = noteWidth / aspectRatio;
+                } else {
+                    // Высокое изображение
+                    noteHeight = Math.min(note.height, maxHeight);
+                    noteWidth = noteHeight * aspectRatio;
+                }
+                
+                console.log(`Calculated dimensions for note ${index}:`, {
+                    noteWidth,
+                    noteHeight,
+                    currentX,
+                    currentY
+                });
+                
+                // Проверяем, нужно ли перейти на новую строку
+                if (currentX + noteWidth > storageArea.width - noteSpacing) {
+                    currentX = noteSpacing;
+                    currentY += noteHeight + noteSpacing;
+                }
+                
+                // Проверяем, не выходит ли заметка за пределы хранилища
+                if (currentY + noteHeight > storageArea.height - noteSpacing) {
+                    console.log(`Note ${index} is outside storage area bounds`);
+                    return; // Пропускаем заметку, если она не помещается
+                }
+                
+                // Рисуем изображение
+                storageCtx.save();
+                storageCtx.translate(currentX, currentY);
+                
+                // Рисуем фон для изображения
+                storageCtx.fillStyle = '#FFFFFF';
+                storageCtx.fillRect(0, 0, noteWidth, noteHeight);
+                
+                try {
+                    // Рисуем само изображение
+                    storageCtx.drawImage(note.image, 0, 0, noteWidth, noteHeight);
+                    console.log(`Successfully drew image for note ${index}`);
+                } catch (error) {
+                    console.error(`Error drawing image for note ${index}:`, error);
+                }
+                
+                // Рисуем подпись, если есть
+                if (note.caption) {
+                    storageCtx.font = `12px ${defaultFont}`;
+                    storageCtx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                    storageCtx.textAlign = 'center';
+                    storageCtx.textBaseline = 'top';
+                    storageCtx.fillText(note.caption, noteWidth / 2, noteHeight + 4);
+                }
+                
+                storageCtx.restore();
+                
+                currentX += noteWidth + noteSpacing;
+            } else if (note.type !== 'image') {
+                storageCtx.font = `${note.fontSize || fontSize}px ${defaultFont}`;
+                const textMetrics = storageCtx.measureText(note.text);
+                noteWidth = Math.min(textMetrics.width + padding * 2, storageArea.width - noteSpacing * 2);
+                noteHeight = (note.fontSize || fontSize) + padding * 2;
+
+                // Проверяем, нужно ли перейти на новую строку
+                if (currentX + noteWidth > storageArea.width - noteSpacing) {
+                    currentX = noteSpacing;
+                    currentY += noteHeight + noteSpacing;
+                }
+
+                // Проверяем, не выходит ли заметка за пределы хранилища
+                if (currentY + noteHeight > storageArea.height - noteSpacing) {
+                    return; // Пропускаем заметку, если она не помещается
+                }
+
+                storageCtx.save();
+                storageCtx.translate(currentX, currentY);
+                
+                // Рисуем фон заметки
+                storageCtx.fillStyle = note.bgColor || colorSchemes[0].bg;
+                storageCtx.fillRect(0, 0, noteWidth, noteHeight);
+                
+                // Рисуем текст с учетом границ
+                storageCtx.font = `${note.fontSize || fontSize}px ${defaultFont}`;
+                storageCtx.fillStyle = note.textColor || colorSchemes[0].text;
+                
+                // Обрезаем текст, если он не помещается
+                let text = note.text;
+                while (storageCtx.measureText(text).width > noteWidth - padding * 2 && text.length > 0) {
+                    text = text.slice(0, -1);
+                }
+                storageCtx.fillText(text, padding, note.fontSize || fontSize);
+                
+                storageCtx.restore();
+
+                currentX += noteWidth + noteSpacing;
+            }
+        });
+    }
 }
 
-// Обновляем функцию noteAt для уменьшения кликабельной области
+// Обновляем функцию drawNote для поддержки разных контекстов
+function drawNote(note) {
+    ctx.save();
+    
+    if (note.type === 'image') {
+        const x = note.x - offsetX;
+        const y = note.y - offsetY;
+        const width = note.width;
+        const height = note.height;
+        const cornerRadius = 6;
+        
+        const scale = note.isDragging ? 1.05 : 1;
+        const shadowBlur = note.isDragging ? 10 : 0;
+        const shadowOffset = note.isDragging ? 5 : 0;
+        
+        if (note.rotation) {
+            ctx.translate(x + width/2, y + height/2);
+            ctx.rotate(note.rotation);
+            ctx.translate(-(x + width/2), -(y + height/2));
+        }
+        
+        if (shadowBlur > 0) {
+            ctx.shadowColor = 'rgba(0, 0, 0, 0.2)';
+            ctx.shadowBlur = shadowBlur;
+            ctx.shadowOffsetY = shadowOffset;
+        }
+        
+        ctx.beginPath();
+        ctx.moveTo(x + cornerRadius, y);
+        ctx.lineTo(x + width - cornerRadius, y);
+        ctx.quadraticCurveTo(x + width, y, x + width, y + cornerRadius);
+        ctx.lineTo(x + width, y + height - cornerRadius);
+        ctx.quadraticCurveTo(x + width, y + height, x + width - cornerRadius, y + height);
+        ctx.lineTo(x + cornerRadius, y + height);
+        ctx.quadraticCurveTo(x, y + height, x, y + height - cornerRadius);
+        ctx.lineTo(x, y + cornerRadius);
+        ctx.quadraticCurveTo(x, y, x + cornerRadius, y);
+        ctx.closePath();
+        
+        if (scale !== 1) {
+            ctx.translate(x + width/2, y + height/2);
+            ctx.scale(scale, scale);
+            ctx.translate(-(x + width/2), -(y + height/2));
+        }
+        
+        ctx.clip();
+        ctx.drawImage(note.image, x, y, width, height);
+        
+        if (note.caption) {
+            ctx.restore();
+            ctx.save();
+            
+            if (note.rotation) {
+                ctx.translate(x + width/2, y + height/2);
+                ctx.rotate(note.rotation);
+                ctx.translate(-(x + width/2), -(y + height/2));
+            }
+            
+            if (scale !== 1) {
+                ctx.translate(x + width/2, y + height/2);
+                ctx.scale(scale, scale);
+                ctx.translate(-(x + width/2), -(y + height/2));
+            }
+            
+            ctx.font = `14px ${defaultFont}`;
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            ctx.fillText(note.caption, x + width/2, y + height + 8);
+        }
+    } else {
+        ctx.font = `${note.fontSize || fontSize}px ${defaultFont}`;
+        ctx.textBaseline = 'top';
+        
+        const padding = 8;
+        const cornerRadius = 6;
+        
+        const x = note.x - offsetX;
+        const y = note.y - offsetY;
+        const width = note.isMultiLine ? note.width : ctx.measureText(note.text).width + padding * 2;
+        const height = note.isMultiLine ? note.height : (note.fontSize || fontSize) + padding * 2;
+        
+        const scale = note.isDragging ? 1.05 : 1;
+        const shadowBlur = note.isDragging ? 10 : 0;
+        const shadowOffset = note.isDragging ? 5 : 0;
+        
+        if (note.rotation) {
+            ctx.translate(x + width/2, y + height/2);
+            ctx.rotate(note.rotation);
+            ctx.translate(-(x + width/2), -(y + height/2));
+        }
+        
+        if (shadowBlur > 0) {
+            ctx.shadowColor = 'rgba(0, 0, 0, 0.2)';
+            ctx.shadowBlur = shadowBlur;
+            ctx.shadowOffsetY = shadowOffset;
+        }
+        
+        ctx.beginPath();
+        ctx.moveTo(x + cornerRadius, y);
+        ctx.lineTo(x + width - cornerRadius, y);
+        ctx.quadraticCurveTo(x + width, y, x + width, y + cornerRadius);
+        ctx.lineTo(x + width, y + height - cornerRadius);
+        ctx.quadraticCurveTo(x + width, y + height, x + width - cornerRadius, y + height);
+        ctx.lineTo(x + cornerRadius, y + height);
+        ctx.quadraticCurveTo(x, y + height, x, y + height - cornerRadius);
+        ctx.lineTo(x, y + cornerRadius);
+        ctx.quadraticCurveTo(x, y, x + cornerRadius, y);
+        ctx.closePath();
+        
+        if (scale !== 1) {
+            ctx.translate(x + width/2, y + height/2);
+            ctx.scale(scale, scale);
+            ctx.translate(-(x + width/2), -(y + height/2));
+        }
+        
+        ctx.fillStyle = note.bgColor || colorSchemes[0].bg;
+        ctx.fill();
+        
+        if (note === hoveredNote) {
+            ctx.strokeStyle = 'rgba(0, 102, 204, 0.5)';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
+        
+        ctx.shadowColor = 'transparent';
+        ctx.shadowBlur = 0;
+        ctx.shadowOffsetY = 0;
+        
+        if (isUrl(note.text)) {
+            if (getCoordinates(note.text)) {
+                ctx.fillStyle = '#2E7D32';
+            } else {
+                ctx.fillStyle = '#0066cc';
+            }
+            ctx.fillText(note.text, x + padding, y + padding);
+            ctx.beginPath();
+            ctx.moveTo(x + padding, y + padding + (note.fontSize || fontSize));
+            ctx.lineTo(x + padding + ctx.measureText(note.text).width, y + padding + (note.fontSize || fontSize));
+            ctx.strokeStyle = ctx.fillStyle;
+            ctx.stroke();
+        } else {
+            ctx.fillStyle = note.textColor || colorSchemes[0].text;
+            if (note.isMultiLine) {
+                const lines = note.text.split('\n');
+                const lineHeight = (note.fontSize || fontSize) * (note.lineHeight || 1.2);
+                const maxWidth = width - padding * 2;
+                
+                const maxLines = Math.floor((height - padding * 2) / lineHeight);
+                
+                lines.slice(0, maxLines).forEach((line, index) => {
+                    let displayLine = line;
+                    while (ctx.measureText(displayLine).width > maxWidth && displayLine.length > 0) {
+                        displayLine = displayLine.slice(0, -1);
+                    }
+                    ctx.fillText(displayLine, x + padding, y + padding + index * lineHeight);
+                });
+            } else {
+                ctx.fillText(note.text, x + padding, y + padding);
+            }
+        }
+
+        if (note.isMultiLine) {
+            ctx.beginPath();
+            ctx.moveTo(x + width - 10, y + height);
+            ctx.lineTo(x + width, y + height - 10);
+            ctx.lineTo(x + width, y + height);
+            ctx.closePath();
+            ctx.fillStyle = note === hoveredNote ? 'rgba(0, 102, 204, 0.5)' : 'rgba(0, 0, 0, 0.3)';
+            ctx.fill();
+        }
+    }
+    ctx.restore();
+}
+
+// Обновляем функцию noteAt для улучшения определения заметок в хранилище
 function noteAt(x, y) {
     const padding = 8;
     const hitPadding = 6;
+
+    // Проверяем заметки в области хранения
+    if (y > window.innerHeight - 100 && storageArea.style.opacity === '1') {
+        console.log('Checking storage area for notes');
+        const noteSpacing = 10;
+        let currentX = noteSpacing;
+        let currentY = window.innerHeight - 100 + noteSpacing;
+
+        for (let i = 0; i < storedNotes.length; i++) {
+            const note = storedNotes[i];
+            const padding = 8;
+            let noteWidth, noteHeight;
+
+            if (note.type === 'image') {
+                noteWidth = note.width;
+                noteHeight = note.height;
+            } else {
+                storageCtx.font = `${note.fontSize || fontSize}px ${defaultFont}`;
+                const textMetrics = storageCtx.measureText(note.text);
+                noteWidth = Math.min(textMetrics.width + padding * 2, storageArea.width - noteSpacing * 2);
+                noteHeight = (note.fontSize || fontSize) + padding * 2;
+            }
+
+            // Проверяем, нужно ли перейти на новую строку
+            if (currentX + noteWidth > storageArea.width - noteSpacing) {
+                currentX = noteSpacing;
+                currentY += noteHeight + noteSpacing;
+            }
+
+            // Проверяем попадание курсора в заметку
+            if (x >= currentX && x <= currentX + noteWidth &&
+                y >= currentY && y <= currentY + noteHeight) {
+                console.log('Found note in storage at:', currentX, currentY);
+                console.log('Note dimensions:', noteWidth, noteHeight);
+                console.log('Click coordinates:', x, y);
+                return { note, isStored: true };
+            }
+
+            currentX += noteWidth + noteSpacing;
+        }
+    }
+
+    // Проверяем заметки на канвасе
     for (let i = notes.length - 1; i >= 0; i--) {
         let note = notes[i];
         if (note.type === 'image') {
@@ -486,7 +831,7 @@ function noteAt(x, y) {
                 y >= note.y - offsetY - hitPadding && 
                 y <= note.y - offsetY + totalHeight
             ) {
-                return note;
+                return { note, isStored: false };
             }
         } else {
             let width, height;
@@ -506,7 +851,7 @@ function noteAt(x, y) {
                 x >= x0 && x <= x1 &&
                 y >= y0 && y <= y1
             ) {
-                return note;
+                return { note, isStored: false };
             }
         }
     }
@@ -527,10 +872,13 @@ function isOverResizeHandle(x, y, note) {
     );
 }
 
-// Обновляем обработчик mousedown
+// Обновляем обработчик mousedown для canvas
 canvas.addEventListener('mousedown', e => {
     let x = e.clientX, y = e.clientY;
-    let note = noteAt(x, y);
+    let result = noteAt(x, y);
+    let note = result ? result.note : null;
+    let isStored = result ? result.isStored : false;
+
     if (e.button === 1) { // Средняя кнопка мыши
         drag = true;
         lastX = x;
@@ -543,25 +891,28 @@ canvas.addEventListener('mousedown', e => {
             drawStartY = y + offsetY;
             drawEndX = drawStartX;
             drawEndY = drawStartY;
-        } else if (isOverResizeHandle(x, y, note)) {
+        } else if (!isStored && isOverResizeHandle(x, y, note)) {
             resizingNote = note;
             resizeStartX = x;
             resizeStartY = y;
             originalWidth = note.width;
             originalHeight = note.height;
         } else {
-            draggingNote = note;
+        draggingNote = note;
             note.isDragging = true;
             note.rotation = 0;
-            dragNoteOffset.x = x + offsetX - note.x;
-            dragNoteOffset.y = y + offsetY - note.y;
-            wasDragged = false; // Сбрасываем флаг перетаскивания
+
+            // Вычисляем смещение от точки клика до центра заметки
+        dragNoteOffset.x = x + offsetX - note.x;
+        dragNoteOffset.y = y + offsetY - note.y;
+            
+            wasDragged = false;
         }
     }
 });
 
-// Обновляем обработчик mousemove
-canvas.addEventListener('mousemove', e => {
+// Обновляем обработчик mousemove для улучшения перетаскивания
+document.addEventListener('mousemove', e => {
     let x = e.clientX, y = e.clientY;
     const canvasX = Math.round(x + offsetX);
     const canvasY = Math.round(y + offsetY);
@@ -585,24 +936,48 @@ canvas.addEventListener('mousemove', e => {
         resizingNote.height = newHeight;
         draw();
     } else if (draggingNote) {
+        // Проверяем, находится ли заметка над областью хранения
+        if (y > window.innerHeight - 100 && !isFromStorage) { // Добавляем проверку флага
+            storageArea.style.background = '#D0D0D0';
+            // Если заметка еще не в хранилище, перемещаем её туда
+            if (!storedNotes.includes(draggingNote)) {
+                const index = notes.indexOf(draggingNote);
+                if (index > -1) {
+                    notes.splice(index, 1);
+                    storedNotes.push(draggingNote);
+                    draggingNote = null;
+                    draw();
+                    saveToStorage();
+                    return; // Прерываем обработку, так как заметка уже перемещена
+                }
+            }
+        } else {
+            storageArea.style.background = '#E8E8E8';
+            // Обновляем позицию заметки с учетом смещения
         draggingNote.x = x + offsetX - dragNoteOffset.x;
         draggingNote.y = y + offsetY - dragNoteOffset.y;
-        // Если заметка сдвинулась больше чем на 5 пикселей, считаем что было перетаскивание
-        if (Math.abs(x - lastX) > 5 || Math.abs(y - lastY) > 5) {
-            wasDragged = true;
+            
+            if (Math.abs(x - lastX) > 5 || Math.abs(y - lastY) > 5) {
+                wasDragged = true;
+            }
+            draw();
+            saveToStorage();
         }
-        draw();
-        saveToStorage();
     } else {
-        let note = noteAt(x, y);
-        if (note && isOverResizeHandle(x, y, note)) {
+        let result = noteAt(x, y);
+        let note = result ? result.note : null;
+        if (note && !result.isStored && isOverResizeHandle(x, y, note)) {
             canvas.style.cursor = 'nwse-resize';
             hoveredNote = note;
         } else if (note && isUrl(note.text)) {
             canvas.style.cursor = 'pointer';
             hoveredNote = note;
+        } else if (note && result.isStored) {
+            storageArea.style.cursor = 'move';
+            hoveredNote = note;
         } else {
             canvas.style.cursor = 'default';
+            storageArea.style.cursor = 'default';
             hoveredNote = note;
         }
         draw();
@@ -610,7 +985,7 @@ canvas.addEventListener('mousemove', e => {
 });
 
 // Обновляем обработчик mouseup
-canvas.addEventListener('mouseup', e => {
+document.addEventListener('mouseup', e => {
     if (e.button === 1) {
         drag = false;
     } else if (e.button === 0) {
@@ -627,35 +1002,38 @@ canvas.addEventListener('mouseup', e => {
             draw();
         }
         if (draggingNote) {
-            draggingNote.rotation = (Math.random() - 0.5) * 0.1;
-            draggingNote.isDragging = false;
-            // Если заметка не была перетащена, обрабатываем клик
-            if (!wasDragged && isUrl(draggingNote.text)) {
-                const coords = getCoordinates(draggingNote.text);
-                if (coords) {
-                    const startX = offsetX;
-                    const startY = offsetY;
-                    const targetX = coords.x - window.innerWidth / 2;
-                    const targetY = coords.y - window.innerHeight / 2;
-                    const duration = 500;
-                    const startTime = performance.now();
-                    function animate(currentTime) {
-                        const elapsed = currentTime - startTime;
-                        const progress = Math.min(elapsed / duration, 1);
-                        const easeOutCubic = 1 - Math.pow(1 - progress, 3);
-                        offsetX = startX + (targetX - startX) * easeOutCubic;
-                        offsetY = startY + (targetY - startY) * easeOutCubic;
-                        draw();
-                        if (progress < 1) {
-                            requestAnimationFrame(animate);
+            // Если заметка все еще перетаскивается (не была перемещена в хранилище)
+            if (draggingNote.isDragging) {
+                draggingNote.rotation = (Math.random() - 0.5) * 0.1;
+                if (!wasDragged && isUrl(draggingNote.text)) {
+                    const coords = getCoordinates(draggingNote.text);
+                    if (coords) {
+                        const startX = offsetX;
+                        const startY = offsetY;
+                        const targetX = coords.x - window.innerWidth / 2;
+                        const targetY = coords.y - window.innerHeight / 2;
+                        const duration = 500;
+                        const startTime = performance.now();
+                        function animate(currentTime) {
+                            const elapsed = currentTime - startTime;
+                            const progress = Math.min(elapsed / duration, 1);
+                            const easeOutCubic = 1 - Math.pow(1 - progress, 3);
+                            offsetX = startX + (targetX - startX) * easeOutCubic;
+                            offsetY = startY + (targetY - startY) * easeOutCubic;
+                            draw();
+                            if (progress < 1) {
+                                requestAnimationFrame(animate);
+                            }
                         }
+                        requestAnimationFrame(animate);
                     }
-                    requestAnimationFrame(animate);
                 }
+                draggingNote.isDragging = false;
+                draggingNote = null;
+                isFromStorage = false; // Сбрасываем флаг
+                draw();
+                saveToStorage();
             }
-            draggingNote = null;
-            draw();
-            saveToStorage();
         }
         if (resizingNote) {
             resizingNote = null;
@@ -666,8 +1044,12 @@ canvas.addEventListener('mouseup', e => {
 
 // Обновляем обработчик dblclick
 canvas.addEventListener('dblclick', e => {
+    console.log('Double click event');
     let x = e.clientX, y = e.clientY;
-    let note = noteAt(x, y);
+    let result = noteAt(x, y);
+    let note = result ? result.note : null;
+    console.log('Note at click position:', note);
+
     if (note) {
         if (note.type === 'image') {
             let input = document.createElement('input');
@@ -690,11 +1072,11 @@ canvas.addEventListener('dblclick', e => {
             input.addEventListener('keydown', e => {
                 if (e.key === 'Enter') {
                     note.caption = input.value;
-                    document.body.removeChild(input);
+                    input.remove();
                     draw();
                     saveToStorage();
                 } else if (e.key === 'Escape') {
-                    document.body.removeChild(input);
+                    input.remove();
                     draw();
                 }
             });
@@ -702,15 +1084,15 @@ canvas.addEventListener('dblclick', e => {
             input.addEventListener('blur', () => {
                 if (document.body.contains(input)) {
                     note.caption = input.value;
-                    document.body.removeChild(input);
+                    input.remove();
                     draw();
                     saveToStorage();
                 }
             });
         } else {
-            editingNote = note;
+            console.log('Starting text edit for note:', note);
+        editingNote = note;
             if (note.isMultiLine) {
-                // Передаем существующую заметку для редактирования
                 createMultiLineInput(note.x, note.x + note.width, note.y, note.y + note.height, note);
             } else {
                 createSingleLineInput(note.x, note.y, note);
@@ -755,11 +1137,11 @@ canvas.addEventListener('wheel', e => {
             note.width *= scale;
             note.height *= scale;
         } else {
-            note.fontSize = note.fontSize || fontSize;
-            if (e.deltaY < 0) {
-                note.fontSize = Math.min(note.fontSize + 2, 64);
-            } else {
-                note.fontSize = Math.max(note.fontSize - 2, 8);
+        note.fontSize = note.fontSize || fontSize;
+        if (e.deltaY < 0) {
+            note.fontSize = Math.min(note.fontSize + 2, 64);
+        } else {
+            note.fontSize = Math.max(note.fontSize - 2, 8);
             }
         }
         draw();
@@ -777,11 +1159,15 @@ window.addEventListener('resize', () => {
 });
 
 // Создание контекстного меню
-function createContextMenu(x, y, note) {
+function createContextMenu(x, y, result) {
+    console.log('Creating context menu for note:', result);
     const existingMenu = document.querySelector('.context-menu');
     if (existingMenu) {
-        document.body.removeChild(existingMenu);
+        existingMenu.remove();
     }
+
+    const note = result.note; // Получаем саму заметку из результата
+    const isStored = result.isStored;
 
     const menu = document.createElement('div');
     menu.className = 'context-menu';
@@ -822,11 +1208,14 @@ function createContextMenu(x, y, note) {
             });
             
             colorBox.addEventListener('click', () => {
+                console.log('Color box clicked:', scheme);
+                console.log('Note before color change:', note);
                 note.bgColor = scheme.bg;
                 note.textColor = scheme.text;
-                document.body.removeChild(menu);
+                console.log('Note after color change:', note);
+                menu.remove();
                 draw();
-                saveToStorage(); // Сохраняем после изменения цвета
+                saveToStorage();
             });
             
             colorContainer.appendChild(colorBox);
@@ -843,24 +1232,32 @@ function createContextMenu(x, y, note) {
     deleteOption.style.marginTop = '8px';
     deleteOption.textContent = 'Удалить';
     deleteOption.addEventListener('click', () => {
-        const index = notes.indexOf(note);
-        if (index > -1) {
-            notes.splice(index, 1);
+        if (isStored) {
+            const index = storedNotes.indexOf(note);
+            if (index > -1) {
+                storedNotes.splice(index, 1);
+            }
+        } else {
+            const index = notes.indexOf(note);
+            if (index > -1) {
+                notes.splice(index, 1);
+            }
         }
-        document.body.removeChild(menu);
+        menu.remove();
         draw();
-        saveToStorage(); // Сохраняем после удаления
+        saveToStorage();
     });
     menu.appendChild(deleteOption);
 
     document.body.appendChild(menu);
 
-    document.addEventListener('click', function closeMenu(e) {
+    const closeMenu = (e) => {
         if (!menu.contains(e.target)) {
-            document.body.removeChild(menu);
+            menu.remove();
             document.removeEventListener('click', closeMenu);
         }
-    });
+    };
+    document.addEventListener('click', closeMenu);
 }
 
 // Добавляем обработчик правой кнопки мыши
@@ -890,9 +1287,10 @@ canvas.addEventListener('mouseenter', e => {
 
 // Обновляем функцию createMultiLineInput
 function createMultiLineInput(startX, endX, startY, endY, existingNote = null) {
+    console.log('Creating multi-line input for note:', existingNote);
     const width = existingNote ? existingNote.width : Math.abs(endX - startX);
     const height = existingNote ? existingNote.height : Math.abs(endY - startY);
-    if (!existingNote && (width < 50 || height < 50)) return; // Минимальный размер только для новых заметок
+    if (!existingNote && (width < 50 || height < 50)) return;
 
     const textarea = document.createElement('textarea');
     textarea.style.position = 'fixed';
@@ -905,7 +1303,7 @@ function createMultiLineInput(startX, endX, startY, endY, existingNote = null) {
     textarea.style.zIndex = '10';
     textarea.style.fontSize = (existingNote ? existingNote.fontSize : fontSize) + 'px';
     textarea.style.fontFamily = defaultFont;
-    textarea.style.background = '#FFFBEA';
+    textarea.style.background = existingNote ? (existingNote.bgColor || colorSchemes[0].bg) : colorSchemes[0].bg;
     textarea.style.border = '1px solid #E6DFAF';
     textarea.style.padding = '8px';
     textarea.style.resize = 'none';
@@ -915,100 +1313,104 @@ function createMultiLineInput(startX, endX, startY, endY, existingNote = null) {
     textarea.style.overflow = 'auto';
     textarea.style.whiteSpace = 'pre-wrap';
     textarea.style.wordWrap = 'break-word';
+    textarea.style.color = existingNote ? (existingNote.textColor || colorSchemes[0].text) : colorSchemes[0].text;
     
-    // Если редактируем существующую заметку, устанавливаем её текст
     if (existingNote) {
-        textarea.value = existingNote.text;
+        console.log('Setting textarea value to:', existingNote.text);
+        textarea.value = existingNote.text || '';
     }
     
     document.body.appendChild(textarea);
     textarea.focus();
 
+    const handleSubmit = () => {
+        console.log('Handling submit for textarea');
+        if (textarea.value.trim()) {
+            if (existingNote) {
+                console.log('Updating existing note:', existingNote);
+                existingNote.text = textarea.value;
+                existingNote.bgColor = existingNote.bgColor || colorSchemes[0].bg;
+                existingNote.textColor = existingNote.textColor || colorSchemes[0].text;
+            } else {
+                console.log('Creating new note');
+                notes.push({
+                    text: textarea.value,
+                    x: left,
+                    y: top,
+                    width: width,
+                    height: height,
+                    fontSize: fontSize,
+                    isMultiLine: true,
+                    lineHeight: 1.2,
+                    bgColor: colorSchemes[0].bg,
+                    textColor: colorSchemes[0].text
+                });
+            }
+        }
+        textarea.remove();
+        draw();
+        saveToStorage();
+    };
+
     textarea.addEventListener('keydown', e => {
         if (e.key === 'Enter' && e.ctrlKey) {
-            if (textarea.value.trim()) {
-                if (existingNote) {
-                    // Обновляем существующую заметку
-                    existingNote.text = textarea.value;
-                } else {
-                    // Создаем новую заметку
-                    notes.push({
-                        text: textarea.value,
-                        x: left,
-                        y: top,
-                        width: width,
-                        height: height,
-                        fontSize: fontSize,
-                        isMultiLine: true,
-                        lineHeight: 1.2
-                    });
-                }
-            }
-            document.body.removeChild(textarea);
-            draw();
-            saveToStorage();
+            handleSubmit();
         } else if (e.key === 'Escape') {
-            document.body.removeChild(textarea);
+            textarea.remove();
         }
     });
 
     textarea.addEventListener('blur', () => {
         if (document.body.contains(textarea)) {
-            if (textarea.value.trim()) {
-                if (existingNote) {
-                    // Обновляем существующую заметку
-                    existingNote.text = textarea.value;
-                } else {
-                    // Создаем новую заметку
-                    notes.push({
-                        text: textarea.value,
-                        x: left,
-                        y: top,
-                        width: width,
-                        height: height,
-                        fontSize: fontSize,
-                        isMultiLine: true,
-                        lineHeight: 1.2
-                    });
-                }
-            }
-            document.body.removeChild(textarea);
-            draw();
-            saveToStorage();
+            handleSubmit();
         }
     });
 }
 
-// Добавляем функцию для создания однострочного поля ввода
+// Обновляем функцию createSingleLineInput
 function createSingleLineInput(x, y, note) {
     let input = document.createElement('input');
     input.type = 'text';
-    input.value = note ? note.text : '';
+    input.value = note ? (note.text || '') : '';
     input.style.position = 'fixed';
     input.style.left = (x - offsetX) + 'px';
     input.style.top = (y - offsetY) + 'px';
     input.style.zIndex = '10';
     input.style.fontSize = (note ? (note.fontSize || fontSize) : fontSize) + 'px';
     input.style.fontFamily = defaultFont;
-    input.style.background = '#FFFBEA';
+    input.style.background = note ? (note.bgColor || colorSchemes[0].bg) : colorSchemes[0].bg;
     input.style.border = '1px solid #E6DFAF';
     input.style.padding = '2px 4px';
+    input.style.color = note ? (note.textColor || colorSchemes[0].text) : colorSchemes[0].text;
     document.body.appendChild(input);
     input.focus();
 
+    const handleSubmit = () => {
+        if (note) {
+            note.text = input.value;
+            note.bgColor = note.bgColor || colorSchemes[0].bg;
+            note.textColor = note.textColor || colorSchemes[0].text;
+        } else if (input.value.trim()) {
+            notes.push({
+                text: input.value,
+                x: x,
+                y: y,
+                fontSize: fontSize,
+                bgColor: colorSchemes[0].bg,
+                textColor: colorSchemes[0].text
+            });
+        }
+        input.remove();
+        editingNote = null;
+        draw();
+        saveToStorage();
+    };
+
     input.addEventListener('keydown', e => {
         if (e.key === 'Enter') {
-            if (note) {
-                note.text = input.value;
-            } else if (input.value.trim()) {
-                notes.push({text: input.value, x: x, y: y, fontSize: fontSize});
-            }
-            document.body.removeChild(input);
-            editingNote = null;
-            draw();
-            saveToStorage();
+            handleSubmit();
         } else if (e.key === 'Escape') {
-            document.body.removeChild(input);
+            input.remove();
             editingNote = null;
             draw();
         }
@@ -1016,10 +1418,7 @@ function createSingleLineInput(x, y, note) {
 
     input.addEventListener('blur', () => {
         if (document.body.contains(input)) {
-            document.body.removeChild(input);
-            editingNote = null;
-            draw();
-            saveToStorage();
+            handleSubmit();
         }
     });
 }
