@@ -1485,19 +1485,18 @@ function createMultiLineInput(startX, endX, startY, endY, existingNote = null) {
                 existingNote.colorIndex = existingNote.colorIndex || 0;
             } else {
                 console.log('Creating new note');
-                notes.push({
+                const newNote = {
                     text: textarea.value,
                     x: left,
                     y: top,
                     width: width,
                     height: height,
                     fontSize: fontSize,
-                    colorIndex: existingNote.colorIndex || 0,
+                    colorIndex: 0,
                     isMultiLine: true,
-                    lineHeight: 1.2,
-                    bgColor: noteColors.bg,
-                    textColor: noteColors.text
-                });
+                    lineHeight: 1.2
+                };
+                notes.push(newNote);
             }
         }
         textarea.remove();
