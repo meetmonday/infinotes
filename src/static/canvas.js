@@ -479,41 +479,32 @@ function draw() {
         let currentX = noteSpacing;
         let currentY = noteSpacing;
 
-        console.log('Drawing storage area. Notes count:', storedNotes.length);
-        storedNotes.forEach((note, index) => {
-            console.log(`Processing note ${index}:`, note);
+        storedNotes.forEach(note => {
             const padding = 8;
             let noteWidth, noteHeight;
 
             if (note.type === 'image') {
-                console.log(`Note ${index} is an image:`, {
-                    image: note.image,
-                    complete: note.image ? note.image.complete : false,
-                    width: note.width,
-                    height: note.height
-                });
-
                 // Вычисляем размеры изображения с сохранением пропорций
                 const maxWidth = storageArea.width - noteSpacing * 2;
                 const maxHeight = 80; // Максимальная высота для изображений в хранилище
                 const aspectRatio = note.width / note.height;
                 
+                // Принудительно масштабируем изображение, чтобы оно поместилось в хранилище
                 if (aspectRatio > 1) {
-                    // Широкое изображение
                     noteWidth = Math.min(note.width, maxWidth);
                     noteHeight = noteWidth / aspectRatio;
+                    if (noteHeight > maxHeight) {
+                        noteHeight = maxHeight;
+                        noteWidth = noteHeight * aspectRatio;
+                    }
                 } else {
-                    // Высокое изображение
                     noteHeight = Math.min(note.height, maxHeight);
                     noteWidth = noteHeight * aspectRatio;
+                    if (noteWidth > maxWidth) {
+                        noteWidth = maxWidth;
+                        noteHeight = noteWidth / aspectRatio;
+                    }
                 }
-                
-                console.log(`Calculated dimensions for note ${index}:`, {
-                    noteWidth,
-                    noteHeight,
-                    currentX,
-                    currentY
-                });
                 
                 // Проверяем, нужно ли перейти на новую строку
                 if (currentX + noteWidth > storageArea.width - noteSpacing) {
@@ -523,7 +514,6 @@ function draw() {
                 
                 // Проверяем, не выходит ли заметка за пределы хранилища
                 if (currentY + noteHeight > storageArea.height - noteSpacing) {
-                    console.log(`Note ${index} is outside storage area bounds`);
                     return; // Пропускаем заметку, если она не помещается
                 }
                 
@@ -535,13 +525,8 @@ function draw() {
                 storageCtx.fillStyle = '#FFFFFF';
                 storageCtx.fillRect(0, 0, noteWidth, noteHeight);
                 
-                try {
-                    // Рисуем само изображение
-                    storageCtx.drawImage(note.image, 0, 0, noteWidth, noteHeight);
-                    console.log(`Successfully drew image for note ${index}`);
-                } catch (error) {
-                    console.error(`Error drawing image for note ${index}:`, error);
-                }
+                // Рисуем само изображение
+                storageCtx.drawImage(note.image, 0, 0, noteWidth, noteHeight);
                 
                 // Рисуем подпись, если есть
                 if (note.caption) {
@@ -555,7 +540,7 @@ function draw() {
                 storageCtx.restore();
                 
                 currentX += noteWidth + noteSpacing;
-            } else if (note.type !== 'image') {
+            } else {
                 storageCtx.font = `${note.fontSize || fontSize}px ${defaultFont}`;
                 const textMetrics = storageCtx.measureText(note.text);
                 noteWidth = Math.min(textMetrics.width + padding * 2, storageArea.width - noteSpacing * 2);
@@ -780,7 +765,6 @@ function noteAt(x, y) {
 
     // Проверяем заметки в области хранения
     if (y > window.innerHeight - 100 && storageArea.style.opacity === '1') {
-        console.log('Checking storage area for notes');
         const noteSpacing = 10;
         let currentX = noteSpacing;
         let currentY = window.innerHeight - 100 + noteSpacing;
@@ -791,8 +775,27 @@ function noteAt(x, y) {
             let noteWidth, noteHeight;
 
             if (note.type === 'image') {
-                noteWidth = note.width;
-                noteHeight = note.height;
+                // Вычисляем размеры изображения с сохранением пропорций
+                const maxWidth = storageArea.width - noteSpacing * 2;
+                const maxHeight = 80;
+                const aspectRatio = note.width / note.height;
+                
+                // Принудительно масштабируем изображение, чтобы оно поместилось в хранилище
+                if (aspectRatio > 1) {
+                    noteWidth = Math.min(note.width, maxWidth);
+                    noteHeight = noteWidth / aspectRatio;
+                    if (noteHeight > maxHeight) {
+                        noteHeight = maxHeight;
+                        noteWidth = noteHeight * aspectRatio;
+                    }
+                } else {
+                    noteHeight = Math.min(note.height, maxHeight);
+                    noteWidth = noteHeight * aspectRatio;
+                    if (noteWidth > maxWidth) {
+                        noteWidth = maxWidth;
+                        noteHeight = noteWidth / aspectRatio;
+                    }
+                }
             } else {
                 storageCtx.font = `${note.fontSize || fontSize}px ${defaultFont}`;
                 const textMetrics = storageCtx.measureText(note.text);
@@ -809,9 +812,6 @@ function noteAt(x, y) {
             // Проверяем попадание курсора в заметку
             if (x >= currentX && x <= currentX + noteWidth &&
                 y >= currentY && y <= currentY + noteHeight) {
-                console.log('Found note in storage at:', currentX, currentY);
-                console.log('Note dimensions:', noteWidth, noteHeight);
-                console.log('Click coordinates:', x, y);
                 return { note, isStored: true };
             }
 
