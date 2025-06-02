@@ -586,6 +586,83 @@ const scrollDecay = 0.95; // Коэффициент затухания прок�
 let lastDrawTime = 0;
 const drawInterval = 1000 / 60; // 60 FPS
 
+// Функция для отрисовки области хранения
+function drawStorageArea() {
+    storageCtx.clearRect(0, 0, storageArea.width, storageArea.height);
+    
+    // Рисуем фон области хранения
+    storageCtx.fillStyle = themes[currentTheme].storage;
+    storageCtx.fillRect(0, 0, storageArea.width, storageArea.height);
+    
+    // Рисуем заметки в области хранения
+    const noteSpacing = 10;
+    let currentX = noteSpacing;
+    let currentY = noteSpacing;
+    
+    storedNotes.forEach(note => {
+        const padding = 8;
+        let noteWidth, noteHeight;
+        
+        if (note.type === 'image') {
+            // Вычисляем размеры изображения с сохранением пропорций
+            const maxWidth = storageArea.width - noteSpacing * 2;
+            const maxHeight = 80;
+            const aspectRatio = note.width / note.height;
+            
+            if (aspectRatio > 1) {
+                noteWidth = Math.min(note.width, maxWidth);
+                noteHeight = noteWidth / aspectRatio;
+                if (noteHeight > maxHeight) {
+                    noteHeight = maxHeight;
+                    noteWidth = noteHeight * aspectRatio;
+                }
+            } else {
+                noteHeight = Math.min(note.height, maxHeight);
+                noteWidth = noteHeight * aspectRatio;
+                if (noteWidth > maxWidth) {
+                    noteWidth = maxWidth;
+                    noteHeight = noteWidth / aspectRatio;
+                }
+            }
+            
+            // Проверяем, нужно ли перейти на новую строку
+            if (currentX + noteWidth > storageArea.width - noteSpacing) {
+                currentX = noteSpacing;
+                currentY += noteHeight + noteSpacing;
+            }
+            
+            // Рисуем изображение
+            storageCtx.save();
+            storageCtx.drawImage(note.image, currentX, currentY, noteWidth, noteHeight);
+            storageCtx.restore();
+            
+            currentX += noteWidth + noteSpacing;
+        } else {
+            storageCtx.font = `${note.fontSize || fontSize}px ${defaultFont}`;
+            const textMetrics = storageCtx.measureText(note.text);
+            noteWidth = Math.min(textMetrics.width + padding * 2, storageArea.width - noteSpacing * 2);
+            noteHeight = (note.fontSize || fontSize) + padding * 2;
+            
+            // Проверяем, нужно ли перейти на новую строку
+            if (currentX + noteWidth > storageArea.width - noteSpacing) {
+                currentX = noteSpacing;
+                currentY += noteHeight + noteSpacing;
+            }
+            
+            // Рисуем фон заметки
+            const noteColors = getNoteColor(note, currentTheme);
+            storageCtx.fillStyle = noteColors.bg;
+            storageCtx.fillRect(currentX, currentY, noteWidth, noteHeight);
+            
+            // Рисуем текст
+            storageCtx.fillStyle = noteColors.text;
+            storageCtx.fillText(note.text, currentX + padding, currentY + padding);
+            
+            currentX += noteWidth + noteSpacing;
+        }
+    });
+}
+
 // Оптимизированная функция отрисовки
 function draw() {
     // Очищаем canvas
