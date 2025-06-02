@@ -101,7 +101,7 @@ function createInputElement(type, styles, value = '') {
 }
 
 function setupInputHandlers(input, onSubmit, onCancel) {
-    addEventListeners(input, {
+    const handlers = {
         keydown: (e) => {
             if (e.key === 'Enter' && (e.ctrlKey || input.tagName === 'INPUT')) {
                 onSubmit();
@@ -114,7 +114,10 @@ function setupInputHandlers(input, onSubmit, onCancel) {
                 onSubmit();
             }
         }
-    });
+    };
+
+    addEventListeners(input, handlers);
+    return () => removeEventListeners(input, handlers);
 }
 
 export function createMultiLineInput(startX, endX, startY, endY, existingNote, notes, fontSize, onUpdate) {
@@ -146,7 +149,7 @@ export function createMultiLineInput(startX, endX, startY, endY, existingNote, n
     appendToBody(textarea);
     textarea.focus();
 
-    setupInputHandlers(
+    const cleanup = setupInputHandlers(
         textarea,
         () => {
             if (textarea.value.trim()) {
@@ -168,10 +171,14 @@ export function createMultiLineInput(startX, endX, startY, endY, existingNote, n
                     });
                 }
             }
+            cleanup();
             removeFromBody(textarea);
             onUpdate();
         },
-        () => removeFromBody(textarea)
+        () => {
+            cleanup();
+            removeFromBody(textarea);
+        }
     );
 }
 
@@ -191,7 +198,7 @@ export function createSingleLineInput(x, y, note, notes, fontSize, onUpdate) {
     appendToBody(input);
     input.focus();
 
-    setupInputHandlers(
+    const cleanup = setupInputHandlers(
         input,
         () => {
             if (note) {
@@ -207,9 +214,13 @@ export function createSingleLineInput(x, y, note, notes, fontSize, onUpdate) {
                     colorIndex: 0
                 });
             }
+            cleanup();
             removeFromBody(input);
             onUpdate();
         },
-        () => removeFromBody(input)
+        () => {
+            cleanup();
+            removeFromBody(input);
+        }
     );
 } 

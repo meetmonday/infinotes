@@ -266,22 +266,30 @@ let storedNotes = [];
 // Добавляем начальные заметки для обучения
 const initialNotes = [{"type":"text","text":"!тема","x":-492,"y":-31,"fontSize":24,"colorIndex":0,"rotation":0.0315720072865151},{"type":"text","text":"infinote","x":-496,"y":-246,"fontSize":64,"colorIndex":4,"rotation":-0.016466621327403088},{"type":"text","text":"Бесконечное полотно для заметок","x":-499,"y":-155,"fontSize":26,"colorIndex":0,"rotation":-0.008499042357624609},{"type":"text","text":"(0,0)","x":-492,"y":70,"fontSize":26,"colorIndex":0,"rotation":-0.02871996452575524},{"type":"text","text":"Базовая поддержка команд","x":-400,"y":0,"fontSize":16,"colorIndex":0,"rotation":0.03344130641089998},{"type":"text","text":"Телепорт на координаты","x":-395,"y":92,"fontSize":16,"colorIndex":0,"rotation":0.03749530737904807},{"type":"text","text":"x.com","x":-500,"y":183,"fontSize":26,"colorIndex":0,"rotation":0.04356517036950585},{"type":"text","text":"Поддержка ссылок","x":-386,"y":185,"fontSize":16,"colorIndex":0,"rotation":-0.041273141112721096},{"type":"text","text":"(0,1000)","x":-492,"y":116,"fontSize":16,"colorIndex":0,"rotation":-0.023965877712914464},{"type":"text","text":"Да, работает","x":-363,"y":942,"fontSize":62,"colorIndex":2,"rotation":-0.01233387292061492},{"type":"text","text":"(0,0)","x":-346,"y":1055,"fontSize":36,"colorIndex":0,"rotation":0.027643305932098308},{"type":"text","text":"Вернуться обратно","x":-236,"y":1065,"fontSize":16,"colorIndex":0,"rotation":0.046072682368420506},{"type":"text","text":"t.me","x":-453,"y":218,"fontSize":20,"colorIndex":0,"rotation":-0.026559708895696144},{"type":"text","text":"ya.ru","x":-506,"y":231,"fontSize":16,"colorIndex":0,"rotation":-0.005724234932458683},{"type":"text","text":"!помощь","x":-493,"y":11,"fontSize":16,"colorIndex":0,"rotation":-0.024532390157736197},{"type":"text","text":"и чего нибудь еще","x":-182,"y":-117,"fontSize":16,"colorIndex":1,"rotation":0.003335086549189004},{"type":"text","text":"= Пример чекбокса","x":-400,"y":-200,"fontSize":16,"colorIndex":0,"rotation":0,"isChecked":false}]
 
-// Точки на фоне
-function drawDots() {
-    const spacing = 40;
-    ctx.save();
-    ctx.clearRect(0, 0, width, height);
-    ctx.fillStyle = themes[currentTheme].background;
-    ctx.fillRect(0, 0, width, height);
-    ctx.fillStyle = themes[currentTheme].dots;
-    for (let x = -offsetX % spacing; x < width; x += spacing) {
-        for (let y = -offsetY % spacing; y < height; y += spacing) {
-            ctx.beginPath();
-            ctx.arc(x, y, 1.5, 0, 2 * Math.PI);
-            ctx.fill();
-        }
+// Добавляем кеш для изображений
+const imageCache = new Map();
+
+// Функция для получения кешированного изображения
+function getCachedImage(note) {
+    if (!note.type === 'image') return null;
+    
+    const cacheKey = `${note.image.src}_${note.width}_${note.height}`;
+    if (imageCache.has(cacheKey)) {
+        return imageCache.get(cacheKey);
     }
-    ctx.restore();
+    
+    // Создаем кеш для изображения
+    const cacheCanvas = document.createElement('canvas');
+    cacheCanvas.width = note.width;
+    cacheCanvas.height = note.height;
+    const cacheCtx = cacheCanvas.getContext('2d', { alpha: true });
+    
+    // Рисуем изображение в кеш
+    cacheCtx.drawImage(note.image, 0, 0, note.width, note.height);
+    
+    // Сохраняем в кеш
+    imageCache.set(cacheKey, cacheCanvas);
+    return cacheCanvas;
 }
 
 // Добавляем поддержку изображений
@@ -516,27 +524,6 @@ function loadFromStorage() {
     }
 }
 
-// Функция для создания заметки с изображением
-function createImageNote(x, y, image) {
-    const img = new Image();
-    img.src = image;
-    img.onload = () => {
-        notes.push({
-            type: 'image',
-            x: x,
-            y: y,
-            image: img,
-            width: img.width,
-            height: img.height,
-            rotation: 0,
-            isDragging: false,
-            caption: ''
-        });
-        draw();
-        saveToStorage(); // Сохраняем после добавления
-    };
-}
-
 // Обработка вставки из буфера обмена
 document.addEventListener('paste', e => {
     const items = e.clipboardData.items;
@@ -588,9 +575,83 @@ coordsDisplay.style.zIndex = '1000';
 coordsDisplay.style.pointerEvents = 'none'; // Чтобы не мешало взаимодействию с канвасом
 document.body.appendChild(coordsDisplay);
 
-// Рисуем все
+// Добавляем переменные для плавной прокрутки
+let isScrolling = false;
+let scrollVelocityX = 0;
+let scrollVelocityY = 0;
+let lastScrollTime = 0;
+const scrollDecay = 0.95; // Коэффициент затухания прокрутки
+
+// Добавляем переменные для оптимизации отрисовки
+let lastDrawTime = 0;
+const drawInterval = 1000 / 60; // 60 FPS
+
+// Оптимизированная функция отрисовки
 function draw() {
-    drawDots();
+    // Очищаем canvas
+    ctx.clearRect(0, 0, width, height);
+    
+    // Рисуем фон
+    ctx.fillStyle = themes[currentTheme].background;
+    ctx.fillRect(0, 0, width, height);
+    
+    // Рисуем точки
+    const spacing = 40;
+    ctx.fillStyle = themes[currentTheme].dots;
+    
+    // Вычисляем начальные координаты с учетом смещения
+    const startX = Math.floor(offsetX / spacing) * spacing;
+    const startY = Math.floor(offsetY / spacing) * spacing;
+    
+    // Вычисляем количество точек, которые нужно нарисовать
+    const numPointsX = Math.ceil(width / spacing) + 2;
+    const numPointsY = Math.ceil(height / spacing) + 2;
+    
+    // Рисуем точки
+    for (let i = 0; i < numPointsX; i++) {
+        for (let j = 0; j < numPointsY; j++) {
+            const x = (startX + i * spacing) - offsetX;
+            const y = (startY + j * spacing) - offsetY;
+            ctx.beginPath();
+            ctx.arc(x, y, 1.5, 0, 2 * Math.PI);
+            ctx.fill();
+        }
+    }
+    
+    // Добавляем буфер для видимой области
+    const baseBuffer = 300; // Увеличенный базовый буфер
+    
+    // Фильтруем только видимые заметки с учетом буфера
+    const visibleNotes = notes.filter(note => {
+        const x = note.x - offsetX;
+        const y = note.y - offsetY;
+        
+        // Вычисляем размеры заметки
+        let width, height;
+        if (note.type === 'image') {
+            width = note.width;
+            height = note.height;
+        } else {
+            ctx.font = `${note.fontSize || fontSize}px ${defaultFont}`;
+            width = note.isMultiLine ? note.width : ctx.measureText(note.text).width + 16;
+            height = note.isMultiLine ? note.height : (note.fontSize || fontSize) + 16;
+        }
+        
+        // Вычисляем динамический буфер на основе размера шрифта
+        const fontSizeBuffer = note.type === 'image' ? 0 : (note.fontSize || fontSize) * 2;
+        const buffer = baseBuffer + fontSizeBuffer;
+        
+        // Проверяем видимость с учетом буфера
+        return x + width > -buffer && 
+               x < canvas.width + buffer && 
+               y + height > -buffer && 
+               y < canvas.height + buffer;
+    });
+    
+    // Рисуем заметки
+    visibleNotes.forEach(note => {
+        drawNote(note);
+    });
     
     // Рисуем область выделения
     if (isDrawing) {
@@ -607,124 +668,9 @@ function draw() {
         ctx.restore();
     }
     
-    // Рисуем заметки
-    notes.forEach(note => {
-        drawNote(note);
-    });
-
     // Рисуем заметки в области хранения
     if (storageArea.style.opacity === '1') {
-        // Очищаем область хранения
-        storageCtx.clearRect(0, 0, storageArea.width, storageArea.height);
-        storageCtx.fillStyle = themes[currentTheme].storage;
-        storageCtx.fillRect(0, 0, storageArea.width, storageArea.height);
-
-        const noteSpacing = 10;
-        let currentX = noteSpacing;
-        let currentY = noteSpacing;
-
-        storedNotes.forEach(note => {
-            const padding = 8;
-            let noteWidth, noteHeight;
-
-            if (note.type === 'image') {
-                // Вычисляем размеры изображения с сохранением пропорций
-                const maxWidth = storageArea.width - noteSpacing * 2;
-                const maxHeight = 80; // Максимальная высота для изображений в хранилище
-                const aspectRatio = note.width / note.height;
-                
-                // Принудительно масштабируем изображение, чтобы оно поместилось в хранилище
-                if (aspectRatio > 1) {
-                    noteWidth = Math.min(note.width, maxWidth);
-                    noteHeight = noteWidth / aspectRatio;
-                    if (noteHeight > maxHeight) {
-                        noteHeight = maxHeight;
-                        noteWidth = noteHeight * aspectRatio;
-                    }
-                } else {
-                    noteHeight = Math.min(note.height, maxHeight);
-                    noteWidth = noteHeight * aspectRatio;
-                    if (noteWidth > maxWidth) {
-                        noteWidth = maxWidth;
-                        noteHeight = noteWidth / aspectRatio;
-                    }
-                }
-                
-                // Проверяем, нужно ли перейти на новую строку
-                if (currentX + noteWidth > storageArea.width - noteSpacing) {
-                    currentX = noteSpacing;
-                    currentY += noteHeight + noteSpacing;
-                }
-                
-                // Проверяем, не выходит ли заметка за пределы хранилища
-                if (currentY + noteHeight > storageArea.height - noteSpacing) {
-                    return; // Пропускаем заметку, если она не помещается
-                }
-                
-                // Рисуем изображение
-                storageCtx.save();
-                storageCtx.translate(currentX, currentY);
-                
-                // Рисуем фон для изображения
-                storageCtx.fillStyle = themes[currentTheme].storage;
-                storageCtx.fillRect(0, 0, noteWidth, noteHeight);
-                
-                // Рисуем само изображение
-                storageCtx.drawImage(note.image, 0, 0, noteWidth, noteHeight);
-                
-                // Рисуем подпись, если есть
-                if (note.caption) {
-                    storageCtx.font = `12px ${defaultFont}`;
-                    storageCtx.fillStyle = currentTheme === 'light' ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.7)';
-                    storageCtx.textAlign = 'center';
-                    storageCtx.textBaseline = 'top';
-                    storageCtx.fillText(note.caption, noteWidth / 2, noteHeight + 4);
-                }
-                
-                storageCtx.restore();
-                
-                currentX += noteWidth + noteSpacing;
-            } else {
-                storageCtx.font = `${note.fontSize || fontSize}px ${defaultFont}`;
-                const textMetrics = storageCtx.measureText(note.text);
-                noteWidth = Math.min(textMetrics.width + padding * 2, storageArea.width - noteSpacing * 2);
-                noteHeight = (note.fontSize || fontSize) + padding * 2;
-
-                // Проверяем, нужно ли перейти на новую строку
-                if (currentX + noteWidth > storageArea.width - noteSpacing) {
-                    currentX = noteSpacing;
-                    currentY += noteHeight + noteSpacing;
-                }
-
-                // Проверяем, не выходит ли заметка за пределы хранилища
-                if (currentY + noteHeight > storageArea.height - noteSpacing) {
-                    return; // Пропускаем заметку, если она не помещается
-                }
-
-                storageCtx.save();
-                storageCtx.translate(currentX, currentY);
-                
-                // Рисуем фон заметки
-                const noteColors = getNoteColor(note, currentTheme);
-                storageCtx.fillStyle = noteColors.bg;
-                storageCtx.fillRect(0, 0, noteWidth, noteHeight);
-                
-                // Рисуем текст с учетом границ
-                storageCtx.font = `${note.fontSize || fontSize}px ${defaultFont}`;
-                storageCtx.fillStyle = noteColors.text;
-                
-                // Обрезаем текст, если он не помещается
-                let text = note.text;
-                while (storageCtx.measureText(text).width > noteWidth - padding * 2 && text.length > 0) {
-                    text = text.slice(0, -1);
-                }
-                storageCtx.fillText(text, padding, note.fontSize || fontSize);
-                
-                storageCtx.restore();
-
-                currentX += noteWidth + noteSpacing;
-            }
-        });
+        drawStorageArea();
     }
 }
 
@@ -774,7 +720,14 @@ function drawNote(note) {
         }
         
         ctx.clip();
-        ctx.drawImage(note.image, x, y, width, height);
+        
+        // Используем кешированное изображение
+        const cachedImage = getCachedImage(note);
+        if (cachedImage) {
+            ctx.drawImage(cachedImage, x, y);
+        } else {
+            ctx.drawImage(note.image, x, y, width, height);
+        }
         
         if (note.caption) {
             ctx.restore();
@@ -1333,37 +1286,40 @@ canvas.addEventListener('click', e => {
     }
 });
 
-// Обновляем обработчик колесика мыши для изменения размера изображений
-canvas.addEventListener('wheel', e => {
-    if (e.ctrlKey) return;
-    let x = e.clientX, y = e.clientY;
-    let result = noteAt(x, y);
-    if (result) {
-        e.preventDefault();
-        const note = result.note;
-        if (note.type === 'image') {
-            const scale = e.deltaY < 0 ? 1.1 : 0.9;
-            note.width *= scale;
-            note.height *= scale;
-        } else {
-            note.fontSize = note.fontSize || fontSize;
-            if (e.deltaY < 0) {
-                note.fontSize = Math.min(note.fontSize + 2, 64);
+// Обновляем обработчик жестов тачпада
+canvas.addEventListener('wheel', (e) => {
+    if (e.ctrlKey) {
+        let x = e.clientX, y = e.clientY;
+        let result = noteAt(x, y);
+        if (result) {
+            e.preventDefault();
+            const note = result.note;
+            if (note.type === 'image') {
+                const scale = e.deltaY < 0 ? 1.1 : 0.9;
+                note.width *= scale;
+                note.height *= scale;
             } else {
-                note.fontSize = Math.max(note.fontSize - 2, 8);
+                note.fontSize = note.fontSize || fontSize;
+                if (e.deltaY < 0) {
+                    note.fontSize = Math.min(note.fontSize + 2, 64);
+                } else {
+                    note.fontSize = Math.max(note.fontSize - 2, 8);
+                }
             }
+            draw();
+            saveToStorage();
         }
-        draw();
-        saveToStorage(); // Сохраняем после изменения размера
+        return;
     }
-}, { passive: false });
 
-// Бесконечное расширение
-window.addEventListener('resize', () => {
-    width = window.innerWidth;
-    height = window.innerHeight;
-    canvas.width = width;
-    canvas.height = height;
+    e.preventDefault();
+    
+    // Инвертируем направление прокрутки
+    const scrollSpeed = 1.0;
+    offsetX += e.deltaX * scrollSpeed;
+    offsetY += e.deltaY * scrollSpeed;
+    
+    // Обновляем отображение
     draw();
 });
 
@@ -1641,3 +1597,42 @@ function createSingleLineInput(x, y, note) {
 // Загружаем сохраненные данные при инициализации
 loadFromStorage();
 draw();
+
+// Обновляем обработчик изменения размера окна
+window.addEventListener('resize', () => {
+    width = window.innerWidth;
+    height = window.innerHeight;
+    canvas.width = width;
+    canvas.height = height;
+    draw();
+});
+
+// Инициализация при загрузке
+width = window.innerWidth;
+height = window.innerHeight;
+canvas.width = width;
+canvas.height = height;
+draw();
+
+// Очищаем кеш при изменении размера изображения
+function createImageNote(x, y, image) {
+    const img = new Image();
+    img.src = image;
+    img.onload = () => {
+        notes.push({
+            type: 'image',
+            x: x,
+            y: y,
+            image: img,
+            width: img.width,
+            height: img.height,
+            rotation: 0,
+            isDragging: false,
+            caption: ''
+        });
+        // Очищаем кеш при добавлении нового изображения
+        imageCache.clear();
+        draw();
+        saveToStorage();
+    };
+}
