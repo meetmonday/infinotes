@@ -264,7 +264,7 @@ document.body.addEventListener('mousemove', e => {
 let storedNotes = [];
 
 // Добавляем начальные заметки для обучения
-const initialNotes = [{"type":"text","text":"!тема","x":-492,"y":-31,"fontSize":24,"colorIndex":0,"rotation":0.0315720072865151},{"type":"text","text":"infinote","x":-496,"y":-246,"fontSize":64,"colorIndex":4,"rotation":-0.016466621327403088},{"type":"text","text":"Бесконечное полотно для заметок","x":-499,"y":-155,"fontSize":26,"colorIndex":0,"rotation":-0.008499042357624609},{"type":"text","text":"(0,0)","x":-492,"y":70,"fontSize":26,"colorIndex":0,"rotation":-0.02871996452575524},{"type":"text","text":"Базовая поддержка команд","x":-400,"y":0,"fontSize":16,"colorIndex":0,"rotation":0.03344130641089998},{"type":"text","text":"Телепорт на координаты","x":-395,"y":92,"fontSize":16,"colorIndex":0,"rotation":0.03749530737904807},{"type":"text","text":"x.com","x":-500,"y":183,"fontSize":26,"colorIndex":0,"rotation":0.04356517036950585},{"type":"text","text":"Поддержка ссылок","x":-386,"y":185,"fontSize":16,"colorIndex":0,"rotation":-0.041273141112721096},{"type":"text","text":"(0,1000)","x":-492,"y":116,"fontSize":16,"colorIndex":0,"rotation":-0.023965877712914464},{"type":"text","text":"Да, работает","x":-363,"y":942,"fontSize":62,"colorIndex":2,"rotation":-0.01233387292061492},{"type":"text","text":"(0,0)","x":-346,"y":1055,"fontSize":36,"colorIndex":0,"rotation":0.027643305932098308},{"type":"text","text":"Вернуться обратно","x":-236,"y":1065,"fontSize":16,"colorIndex":0,"rotation":0.046072682368420506},{"type":"text","text":"t.me","x":-453,"y":218,"fontSize":20,"colorIndex":0,"rotation":-0.026559708895696144},{"type":"text","text":"ya.ru","x":-506,"y":231,"fontSize":16,"colorIndex":0,"rotation":-0.005724234932458683},{"type":"text","text":"!помощь","x":-493,"y":11,"fontSize":16,"colorIndex":0,"rotation":-0.024532390157736197},{"type":"text","text":"и чего нибудь еще","x":-182,"y":-117,"fontSize":16,"colorIndex":1,"rotation":0.003335086549189004}]
+const initialNotes = [{"type":"text","text":"!тема","x":-492,"y":-31,"fontSize":24,"colorIndex":0,"rotation":0.0315720072865151},{"type":"text","text":"infinote","x":-496,"y":-246,"fontSize":64,"colorIndex":4,"rotation":-0.016466621327403088},{"type":"text","text":"Бесконечное полотно для заметок","x":-499,"y":-155,"fontSize":26,"colorIndex":0,"rotation":-0.008499042357624609},{"type":"text","text":"(0,0)","x":-492,"y":70,"fontSize":26,"colorIndex":0,"rotation":-0.02871996452575524},{"type":"text","text":"Базовая поддержка команд","x":-400,"y":0,"fontSize":16,"colorIndex":0,"rotation":0.03344130641089998},{"type":"text","text":"Телепорт на координаты","x":-395,"y":92,"fontSize":16,"colorIndex":0,"rotation":0.03749530737904807},{"type":"text","text":"x.com","x":-500,"y":183,"fontSize":26,"colorIndex":0,"rotation":0.04356517036950585},{"type":"text","text":"Поддержка ссылок","x":-386,"y":185,"fontSize":16,"colorIndex":0,"rotation":-0.041273141112721096},{"type":"text","text":"(0,1000)","x":-492,"y":116,"fontSize":16,"colorIndex":0,"rotation":-0.023965877712914464},{"type":"text","text":"Да, работает","x":-363,"y":942,"fontSize":62,"colorIndex":2,"rotation":-0.01233387292061492},{"type":"text","text":"(0,0)","x":-346,"y":1055,"fontSize":36,"colorIndex":0,"rotation":0.027643305932098308},{"type":"text","text":"Вернуться обратно","x":-236,"y":1065,"fontSize":16,"colorIndex":0,"rotation":0.046072682368420506},{"type":"text","text":"t.me","x":-453,"y":218,"fontSize":20,"colorIndex":0,"rotation":-0.026559708895696144},{"type":"text","text":"ya.ru","x":-506,"y":231,"fontSize":16,"colorIndex":0,"rotation":-0.005724234932458683},{"type":"text","text":"!помощь","x":-493,"y":11,"fontSize":16,"colorIndex":0,"rotation":-0.024532390157736197},{"type":"text","text":"и чего нибудь еще","x":-182,"y":-117,"fontSize":16,"colorIndex":1,"rotation":0.003335086549189004},{"type":"text","text":"= Пример чекбокса","x":-400,"y":-200,"fontSize":16,"colorIndex":0,"rotation":0,"isChecked":false}]
 
 // Точки на фоне
 function drawDots() {
@@ -380,7 +380,8 @@ function saveToStorage() {
                 colorIndex: note.colorIndex || 0,
                 rotation: note.rotation,
                 isMultiLine: note.isMultiLine,
-                lineHeight: note.lineHeight
+                lineHeight: note.lineHeight,
+                isChecked: note.isChecked || false
             };
         }
     });
@@ -410,7 +411,8 @@ function saveToStorage() {
                 colorIndex: note.colorIndex || 0,
                 rotation: note.rotation,
                 isMultiLine: note.isMultiLine,
-                lineHeight: note.lineHeight
+                lineHeight: note.lineHeight,
+                isChecked: note.isChecked || false
             };
         }
     });
@@ -454,7 +456,8 @@ function loadFromStorage() {
                 notes.push({
                     ...note,
                     text: note.text || '',
-                    colorIndex: note.colorIndex || 0
+                    colorIndex: note.colorIndex || 0,
+                    isChecked: note.isChecked || false
                 });
             }
         });
@@ -464,7 +467,8 @@ function loadFromStorage() {
             notes.push({
                 ...note,
                 text: note.text || '',
-                colorIndex: note.colorIndex || 0
+                colorIndex: note.colorIndex || 0,
+                isChecked: note.isChecked || false
             });
         });
         // Сохраняем начальные заметки в localStorage
@@ -496,7 +500,8 @@ function loadFromStorage() {
                 storedNotes.push({
                     ...note,
                     text: note.text || '',
-                    colorIndex: note.colorIndex || 0
+                    colorIndex: note.colorIndex || 0,
+                    isChecked: note.isChecked || false
                 });
             }
         });
@@ -723,7 +728,7 @@ function draw() {
     }
 }
 
-// Обновляем функцию drawNote для поддержки разных контекстов
+// Обновляем функцию drawNote для поддержки чекбоксов
 function drawNote(note) {
     ctx.save();
     
@@ -853,8 +858,51 @@ function drawNote(note) {
         ctx.shadowColor = 'transparent';
         ctx.shadowBlur = 0;
         ctx.shadowOffsetY = 0;
+
+        // Проверяем, является ли заметка чекбоксом
+        const isCheckbox = note.text.startsWith('=');
+        const checkboxSize = (note.fontSize || fontSize) * 0.8;
+        const checkboxPadding = 4;
         
-        if (isUrl(note.text)) {
+        if (isCheckbox) {
+            // Рисуем чекбокс
+            const checkboxX = x + padding;
+            const checkboxY = y + padding;
+            
+            // Рисуем рамку чекбокса
+            ctx.strokeStyle = noteColors.text;
+            ctx.lineWidth = 2;
+            ctx.strokeRect(checkboxX, checkboxY, checkboxSize, checkboxSize);
+            
+            // Если чекбокс отмечен, рисуем галочку
+            if (note.isChecked) {
+                ctx.beginPath();
+                ctx.moveTo(checkboxX + checkboxSize * 0.2, checkboxY + checkboxSize * 0.5);
+                ctx.lineTo(checkboxX + checkboxSize * 0.4, checkboxY + checkboxSize * 0.7);
+                ctx.lineTo(checkboxX + checkboxSize * 0.8, checkboxY + checkboxSize * 0.3);
+                ctx.stroke();
+                
+                // Устанавливаем прозрачность для текста
+                ctx.globalAlpha = 0.5;
+            }
+            
+            // Рисуем текст после чекбокса
+            const textX = checkboxX + checkboxSize + checkboxPadding;
+            const textY = checkboxY;
+            const text = note.text.slice(1); // Убираем "=" из начала
+            
+            if (note.isChecked) {
+                // Рисуем перечеркивание
+                const textWidth = ctx.measureText(text).width;
+                ctx.beginPath();
+                ctx.moveTo(textX, textY + (note.fontSize || fontSize) / 2);
+                ctx.lineTo(textX + textWidth, textY + (note.fontSize || fontSize) / 2);
+                ctx.stroke();
+            }
+            
+            ctx.fillStyle = noteColors.text;
+            ctx.fillText(text, textX, textY);
+        } else if (isUrl(note.text)) {
             if (getCoordinates(note.text)) {
                 ctx.fillStyle = currentTheme === 'light' ? '#2E7D32' : '#81C784';
             } else {
@@ -1253,13 +1301,13 @@ canvas.addEventListener('dblclick', e => {
     }
 });
 
-// Обновляем обработчик клика
+// Обновляем обработчик клика для поддержки чекбоксов
 canvas.addEventListener('click', e => {
     if (editingNote) return;
     if (drag) return;
     if (isDrawing) return;
     if (draggingNote) return;
-    if (wasDragged) return; // Не обрабатываем клик, если был drag
+    if (wasDragged) return;
     
     let x = e.clientX, y = e.clientY;
     let result = noteAt(x, y);
@@ -1268,7 +1316,11 @@ canvas.addEventListener('click', e => {
     }
     
     const note = result.note;
-    if (isUrl(note.text)) {
+    if (note.text.startsWith('=')) {
+        note.isChecked = !note.isChecked;
+        draw();
+        saveToStorage();
+    } else if (isUrl(note.text)) {
         if (e.ctrlKey) {
             if (note.text.startsWith('http://') || note.text.startsWith('https://')) {
                 window.open(note.text, '_blank');
